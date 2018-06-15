@@ -116,6 +116,10 @@ Parameters::Parameters(std::string fileName) {
   itbitSecret = getParameter("ItBitSecretKey", configFile);
   itbitFees = getDouble(getParameter("ItBitFees", configFile));
   itbitEnable = getBool(getParameter("ItBitEnable", configFile));
+  btceApi = getParameter("BTCeApiKey", configFile);
+  btceSecret = getParameter("BTCeSecretKey", configFile);
+  btceFees = getDouble(getParameter("BTCeFees", configFile));
+  btceEnable = getBool(getParameter("BTCeEnable", configFile)); 
   wexApi = getParameter("WEXApiKey", configFile);
   wexSecret = getParameter("WEXSecretKey", configFile);
   wexFees = getDouble(getParameter("WEXFees", configFile));

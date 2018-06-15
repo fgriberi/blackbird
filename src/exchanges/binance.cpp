@@ -27,13 +27,33 @@ static RestApi &queryHandle(Parameters &params)
     return query;
 }
 
-quote_t getQuote(Parameters &params)
+std::string getMatchingPair(std::string pair) {
+  if (pair.compare("btcusd") == 0) {
+    return "BTCUSDT";
+  } else if (pair.compare("ethusd") == 0) {
+    return "";
+  } else if (pair.compare("btceur") == 0) {
+    return "";
+  } else if (pair.compare("etheur") == 0) {
+    return "";
+  } else {
+    return "";
+  }
+}
+
+quote_t getQuote(Parameters &params, std::string pair)
 {
+
+    std::string matchingPair = getMatchingPair(pair);
+    if (matchingPair.compare("") == 0) {
+      *params.logFile << "<Binance> Pair not supported" << std::endl;
+    //   return "0";
+    }
+
     auto &exchange = queryHandle(params);
     std::string x;
-    //TODO: build real currency string
     x += "/api/v3/ticker/bookTicker?symbol=";
-    x += "BTCUSDT";
+    x += matchingPair;
     //params.leg2.c_str();
     unique_json root{exchange.getRequest(x)};
     double quote = atof(json_string_value(json_object_get(root.get(), "bidPrice")));
@@ -48,7 +68,7 @@ double getAvail(Parameters &params, std::string currency)
 {
     std::string cur_str;
     //cur_str += "symbol=BTCUSDT";
-    if (currency.compare("USD") == 0)
+    if (currency.compare("usd") == 0)
     {
         cur_str += "USDT";
     }
@@ -81,18 +101,24 @@ double getAvail(Parameters &params, std::string currency)
     }
     return available;
 }
-//TODO: Currency String here
-std::string sendLongOrder(Parameters &params, std::string direction, double quantity, double price)
+
+std::string sendLongOrder(Parameters &params, std::string direction, double quantity, double price, std::string pair)
 {
     if (direction.compare("buy") != 0 && direction.compare("sell") != 0)
     {
         *params.logFile << "<Binance> Error: Neither \"buy\" nor \"sell\" selected" << std::endl;
         return "0";
     }
+    std::string matchingPair = getMatchingPair(pair);
+    if (matchingPair.compare("") == 0) {
+        *params.logFile << "<Binance> Pair not supported" << std::endl;
+        return "0";
+    }
+
     *params.logFile << "<Binance> Trying to send a \"" << direction << "\" limit order: "
                     << std::setprecision(8) << quantity << " @ $"
                     << std::setprecision(8) << price << "...\n";
-    std::string symbol = "BTCUSDT";
+    std::string symbol = matchingPair;
     std::transform(direction.begin(), direction.end(), direction.begin(), toupper);
     std::string type = "LIMIT";
     std::string tif = "GTC";
@@ -108,7 +134,7 @@ std::string sendLongOrder(Parameters &params, std::string direction, double quan
 }
 
 //TODO: probably not necessary
-std::string sendShortOrder(Parameters &params, std::string direction, double quantity, double price)
+std::string sendShortOrder(Parameters &params, std::string direction, double quantity, double price, std::string pair)
 {
     return "0";
 }
@@ -133,17 +159,24 @@ bool isOrderComplete(Parameters &params, std::string orderId)
     }
     return complete;
 }
-//TODO: Currency
-double getActivePos(Parameters &params)
+
+double getActivePos(Parameters &params, std::string currency)
 {
-    return getAvail(params, "BTC");
+    return getAvail(params, currency);
 }
 
-double getLimitPrice(Parameters &params, double volume, bool isBid)
+double getLimitPrice(Parameters &params, double volume, bool isBid, std::string pair)
 {
+
+    std::string matchingPair = getMatchingPair(pair);
+    if (matchingPair.compare("") == 0) {
+        *params.logFile << "<Binance> Pair not supported" << std::endl;
+        // return "0";
+    }
+
     auto &exchange = queryHandle(params);
     //TODO build a real URI string here
-    unique_json root{exchange.getRequest("/api/v1/depth?symbol=BTCUSDT")};
+    unique_json root{exchange.getRequest("/api/v1/depth?symbol="+matchingPair)};
     auto bidask = json_object_get(root.get(), isBid ? "bids" : "asks");
     *params.logFile << "<Binance Looking for a limit price to fill "
                     << std::setprecision(8) << fabs(volume) << " Legx...\n";

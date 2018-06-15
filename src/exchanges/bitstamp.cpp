@@ -41,10 +41,32 @@ static json_t* checkResponse(std::ostream &logFile, json_t *root)
   return root;
 }
 
-quote_t getQuote(Parameters& params)
+std::string getMatchingPair(std::string pair) {
+  if (pair.compare("btcusd") == 0) {
+    return "btcusd";
+  } else if (pair.compare("ethusd") == 0) {
+    return "ethusd";
+  } else if (pair.compare("btceur") == 0) {
+    return "btceur";
+  } else if (pair.compare("etheur") == 0) {
+    return "etheur";
+  } else if (pair.compare("bchusd") == 0) {
+    return "bchusd";
+  } else {
+    return "";
+  }
+}
+
+quote_t getQuote(Parameters& params, std::string pair)
 {
+  std::string matchingPair = getMatchingPair(pair);
+  if (matchingPair.compare("") == 0) {
+    *params.logFile << "<Bitstamp> Pair not supported" << std::endl;
+    // return "0";
+  }
+
   auto &exchange = queryHandle(params);
-  unique_json root { exchange.getRequest("/api/ticker") };
+  unique_json root { exchange.getRequest("/api/v2/ticker/"+ matchingPair) };
 
   const char *quote = json_string_value(json_object_get(root.get(), "bid"));
   auto bidValue = quote ? atof(quote) : 0.0;
@@ -57,14 +79,16 @@ quote_t getQuote(Parameters& params)
 
 double getAvail(Parameters& params, std::string currency)
 {
-  unique_json root { authRequest(params, "/api/balance/", "") };
+  *params.logFile << "<Bitstamp> getAvail" << std::endl;
+
+  unique_json root { authRequest(params, "/api/v2/balance/", "") };
   while (json_object_get(root.get(), "message") != NULL)
   {
     std::this_thread::sleep_for(std::chrono::seconds(1));
     auto dump = json_dumps(root.get(), 0);
     *params.logFile << "<Bitstamp> Error with JSON: " << dump << ". Retrying..." << std::endl;
     free(dump);
-    root.reset(authRequest(params, "/api/balance/", ""));
+    root.reset(authRequest(params, "/api/v2/balance/", ""));
   }
   double availability = 0.0;
   const char* returnedText = NULL;
@@ -76,30 +100,61 @@ double getAvail(Parameters& params, std::string currency)
   {
     returnedText = json_string_value(json_object_get(root.get(), "usd_balance"));
   }
+  else if (currency == "eur")
+  {
+    returnedText = json_string_value(json_object_get(root.get(), "eur_balance"));
+  }
+  else if (currency == "eth")
+  {
+    returnedText = json_string_value(json_object_get(root.get(), "eth_balance"));
+  }
+  else if (currency == "xrp")
+  {
+    returnedText = json_string_value(json_object_get(root.get(), "xrp_balance"));
+  }
+  else if (currency == "bch")
+  {
+    returnedText = json_string_value(json_object_get(root.get(), "bch_balance"));
+  }
   if (returnedText != NULL)
   {
     availability = atof(returnedText);
   }
   else
   {
-    *params.logFile << "<Bitstamp> Error with the credentials." << std::endl;
+
+    returnedText = json_string_value(json_object_get(root.get(), ""));
+    *params.logFile << "<Bitstamp> Error with the credentials." << "/api/v2/balance/"+currency+"usd - " << returnedText << std::endl;
     availability = 0.0;
   }
 
   return availability;
 }
 
-std::string sendLongOrder(Parameters& params, std::string direction, double quantity, double price)
+std::string sendLongOrder(Parameters& params, std::string direction, double quantity, double price, std::string pair)
 {
+  std::string matchingPair = getMatchingPair(pair);
+  if (matchingPair.compare("") == 0) {
+    *params.logFile << "<Bitstamp> Pair not supported" << std::endl;
+    return "0";
+  }
+
   *params.logFile << "<Bitstamp> Trying to send a \"" << direction << "\" limit order: "
                   << std::setprecision(6) << quantity << "@$"
                   << std::setprecision(2) << price << "...\n";
-  std::string url = "/api/" + direction + '/';
+  std::string url = "/api/v2/" + direction + '/' + matchingPair + '/';
 
   std::ostringstream oss;
   oss << "amount=" << quantity << "&price=" << std::fixed << std::setprecision(2) << price;
   std::string options = oss.str();
   unique_json root { authRequest(params, url, options) };
+  //TODO why id is 0 here?
+  /*
+    <Bitstamp> Trying to send a "buy" limit order: 0.022242@$1,123.69...
+    <Bitstamp> Order ID = 0. Message: {"price": "1123.69", "amount": "0.02224220", "type": "0", "id": "1362032057", "datetime": "2018-04-21 00:03:20.774398"}
+    <Bitstamp> Done (order ID: 0)
+  */
+
   auto orderId = std::to_string(json_integer_value(json_object_get(root.get(), "id")));
   if (orderId == "0")
   {
@@ -122,17 +177,23 @@ bool isOrderComplete(Parameters& params, std::string orderId)
   return status && status == std::string("Finished");
 }
 
-double getActivePos(Parameters& params) { return getAvail(params, "btc"); }
+double getActivePos(Parameters& params, std::string currency) { return getAvail(params, currency); }
 
-double getLimitPrice(Parameters& params, double volume, bool isBid)
+double getLimitPrice(Parameters& params, double volume, bool isBid, std::string pair)
 {
+  std::string matchingPair = getMatchingPair(pair);
+  if (matchingPair.compare("") == 0) {
+    *params.logFile << "<Bitstamp> Pair not supported" << std::endl;
+    // return "0";
+  }
+
   auto &exchange = queryHandle(params);
-  unique_json root { exchange.getRequest("/api/order_book") };
+  unique_json root { exchange.getRequest("/api/v2/order_book/"+matchingPair) };
   auto orderbook = json_object_get(root.get(), isBid ? "bids" : "asks");
 
   // loop on volume
   *params.logFile << "<Bitstamp> Looking for a limit price to fill "
-                  << std::setprecision(6) << fabs(volume) << " BTC...\n";
+                  << std::setprecision(6) << fabs(volume) << " " << pair << " ...\n";
   double tmpVol = 0.0;
   double p = 0.0;
   double v;

@@ -9,15 +9,15 @@ struct Parameters;
 
 namespace GDAX {
 
-quote_t getQuote(Parameters& params);
+quote_t getQuote(Parameters &params, std::string pair);
 
 double getAvail(Parameters& params, std::string currency);
 
-double getActivePos(Parameters& params);
+double getActivePos(Parameters& params, std::string currency);
 
-double getLimitPrice(Parameters& params, double volume, bool isBid);
+double getLimitPrice(Parameters& params, double volume, bool isBid, std::string pair);
 
-std::string sendLongOrder(Parameters& params, std::string direction, double quantity, double price);
+std::string sendLongOrder(Parameters& params, std::string direction, double quantity, double price, std::string pair);
 
 bool isOrderComplete(Parameters& params, std::string orderId);
 

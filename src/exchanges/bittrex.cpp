@@ -32,7 +32,7 @@ static json_t* checkResponse(std::ostream &logFile, json_t *root)
   return root;
 }
 
-quote_t getQuote(Parameters &params)
+quote_t getQuote(Parameters &params, std::string pair)
 {
   auto &exchange = queryHandle(params);
   std::string x;
@@ -68,7 +68,7 @@ double getAvail(Parameters &params, std::string currency)
   return available;
 }
 // this function name is misleading it is not a "long" order but a non margin order.
-std::string sendLongOrder(Parameters& params, std::string direction, double quantity, double price) {
+std::string sendLongOrder(Parameters& params, std::string direction, double quantity, double price, std::string pair) {
   if (direction.compare("buy") != 0 && direction.compare("sell") != 0) {
     *params.logFile  << "<Bittrex> Error: Neither \"buy\" nor \"sell\" selected" << std::endl;
     return "0";
@@ -76,7 +76,10 @@ std::string sendLongOrder(Parameters& params, std::string direction, double quan
   *params.logFile << "<Bittrex> Trying to send a \"" << direction << "\" limit order: "
                   << std::setprecision(8) << quantity << " @ $"
                   << std::setprecision(8) << price << "...\n";
-  std::string pair = "USDT-BTC";
+  
+  //TODO implement matchingpair 
+  // std::string pair = "USDT-BTC";
+
   std::string type = direction;
   std::string pricelimit = std::to_string(price);
   std::string volume = std::to_string(quantity);
@@ -90,7 +93,7 @@ std::string sendLongOrder(Parameters& params, std::string direction, double quan
   return txid;
 }
 //SUGGEST: probably not necessary
-std::string sendShortOrder(Parameters& params, std::string direction, double quantity, double price) {
+std::string sendShortOrder(Parameters& params, std::string direction, double quantity, double price, std::string pair) {
   if (direction.compare("buy") != 0 && direction.compare("sell") != 0) {
     *params.logFile  << "<Bittrex> Error: Neither \"buy\" nor \"sell\" selected" << std::endl;
     return "0";
@@ -98,7 +101,8 @@ std::string sendShortOrder(Parameters& params, std::string direction, double qua
   *params.logFile << "<Bittrex> Trying to send a \"" << direction << "\" limit order: "
                   << std::setprecision(8) << quantity << " @ $"
                   << std::setprecision(8) << price << "...\n";
-  std::string pair = "USDT-BTC";
+  //TODO implement matchingpair
+  // std::string pair = "USDT-BTC";
   std::string pricelimit = std::to_string(price);
   std::string volume = std::to_string(quantity);
   std::string options = "market=" + pair + "&quantity=" + volume + "&rate=" + pricelimit;
@@ -151,11 +155,11 @@ bool isOrderComplete(Parameters& params, std::string orderId)
   return isOrderStillOpen;  
 }
 
-double getActivePos(Parameters& params) {
+double getActivePos(Parameters& params, std::string currency) {
     return getAvail(params, "BTC");
 }
 
-double getLimitPrice(Parameters& params, double volume, bool isBid) {
+double getLimitPrice(Parameters& params, double volume, bool isBid, std::string pair) {
   // takes a quantity we want and if its a bid or not
   auto &exchange  = queryHandle(params);
   //TODO build a real URI string here

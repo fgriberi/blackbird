@@ -9,13 +9,13 @@ struct Parameters;
 
 namespace ItBit {
 
-quote_t getQuote(Parameters& params);
+quote_t getQuote(Parameters &params, std::string pair);
 
 double getAvail(Parameters& params, std::string currency);
 
-double getActivePos(Parameters& params);
+double getActivePos(Parameters& params, std::string currency);
 
-double getLimitPrice(Parameters& params, double volume, bool isBid);
+double getLimitPrice(Parameters& params, double volume, bool isBid, std::string pair);
 
 }
 

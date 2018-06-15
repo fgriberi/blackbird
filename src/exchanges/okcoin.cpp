@@ -21,7 +21,7 @@ static RestApi& queryHandle(Parameters &params)
   return query;
 }
 
-quote_t getQuote(Parameters &params)
+quote_t getQuote(Parameters &params, std::string pair)
 {
   auto &exchange = queryHandle(params);
   unique_json root { exchange.getRequest("/api/ticker.do?ok=1") };
@@ -65,7 +65,7 @@ double getAvail(Parameters& params, std::string currency)
   return availability;
 }
 
-std::string sendLongOrder(Parameters& params, std::string direction, double quantity, double price)
+std::string sendLongOrder(Parameters& params, std::string direction, double quantity, double price, std::string pair)
 {
   // signature
   std::ostringstream oss;
@@ -85,7 +85,7 @@ std::string sendLongOrder(Parameters& params, std::string direction, double quan
   return orderId;
 }
 
-std::string sendShortOrder(Parameters& params, std::string direction, double quantity, double price) {
+std::string sendShortOrder(Parameters& params, std::string direction, double quantity, double price, std::string pair) {
   // TODO
   // Unlike Bitfinex and Poloniex, on OKCoin the borrowing phase has to be done
   // as a separated step before being able to short sell.
@@ -119,9 +119,9 @@ bool isOrderComplete(Parameters& params, std::string orderId)
   return status == 2;
 }
 
-double getActivePos(Parameters& params) { return getAvail(params, "btc"); }
+double getActivePos(Parameters& params, std::string currency) { return getAvail(params, "btc"); }
 
-double getLimitPrice(Parameters& params, double volume, bool isBid)
+double getLimitPrice(Parameters& params, double volume, bool isBid, std::string pair)
 {
   auto &exchange = queryHandle(params);
   unique_json root { exchange.getRequest("/api/v1/depth.do?symbol=btc_usd") };

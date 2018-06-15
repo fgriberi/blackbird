@@ -34,12 +34,34 @@ static json_t* checkResponse(std::ostream &logFile, json_t *root)
   return root;
 }
 
-quote_t getQuote(Parameters &params)
+std::string getMatchingPair(std::string pair) {
+  if (pair.compare("btcusd") == 0) {
+    return "btcusd";
+  } else if (pair.compare("ethusd") == 0) {
+    return "ethusd";
+  } else if (pair.compare("btceur") == 0) {
+    return "btceur";
+  } else if (pair.compare("etheur") == 0) {
+    return "etheur";
+  } else if (pair.compare("bchusd") == 0) {
+    return "bchusd";
+  } else {
+    return "";
+  }
+}
+
+quote_t getQuote(Parameters &params, std::string pair)
 {
+  std::string matchingPair = getMatchingPair(pair);
+  if (matchingPair.compare("") == 0) {
+    *params.logFile << "<Bitfinex> Pair not supported" << std::endl;
+    // return "0";
+  }
+
   auto &exchange = queryHandle(params);
 
   std::string url;
-  url = "/v1/ticker/btcusd";
+  url = "/v1/ticker/"+matchingPair;
   
   unique_json root { exchange.getRequest(url) };
 
@@ -54,6 +76,8 @@ quote_t getQuote(Parameters &params)
 
 double getAvail(Parameters& params, std::string currency)
 {
+  *params.logFile << "<Bitfinex> getAvail" << std::endl;
+
   unique_json root { authRequest(params, "/v1/balances", "") };
 
   double availability = 0.0;
@@ -81,23 +105,29 @@ double getAvail(Parameters& params, std::string currency)
   return availability;
 }
 
-std::string sendLongOrder(Parameters& params, std::string direction, double quantity, double price)
+std::string sendLongOrder(Parameters& params, std::string direction, double quantity, double price, std::string pair)
 {
-  return sendOrder(params, direction, quantity, price);
+  return sendOrder(params, direction, quantity, price, pair);
 }
 
-std::string sendShortOrder(Parameters& params, std::string direction, double quantity, double price)
+std::string sendShortOrder(Parameters& params, std::string direction, double quantity, double price, std::string pair)
 {
-  return sendOrder(params, direction, quantity, price);
+  return sendOrder(params, direction, quantity, price, pair);
 }
 
-std::string sendOrder(Parameters& params, std::string direction, double quantity, double price)
+std::string sendOrder(Parameters& params, std::string direction, double quantity, double price, std::string pair)
 {
+  std::string matchingPair = getMatchingPair(pair);
+  if (matchingPair.compare("") == 0) {
+    *params.logFile << "<Bitfinex> Pair not supported" << std::endl;
+    return "0";
+  }
+  
   *params.logFile << "<Bitfinex> Trying to send a \"" << direction << "\" limit order: "
                   << std::setprecision(6) << quantity << "@$"
                   << std::setprecision(2) << price << "...\n";
   std::ostringstream oss;
-  oss << "\"symbol\":\"btcusd\", \"amount\":\"" << quantity << "\", \"price\":\"" << price << "\", \"exchange\":\"bitfinex\", \"side\":\"" << direction << "\", \"type\":\"limit\"";
+  oss << "\"symbol\":\"" << matchingPair << "\", \"amount\":\"" << quantity << "\", \"price\":\"" << price << "\", \"exchange\":\"bitfinex\", \"side\":\"" << direction << "\", \"type\":\"limit\"";
   std::string options = oss.str();
   unique_json root { authRequest(params, "/v1/order/new", options) };
   auto orderId = std::to_string(json_integer_value(json_object_get(root.get(), "order_id")));
@@ -114,28 +144,37 @@ bool isOrderComplete(Parameters& params, std::string orderId)
   return json_is_false(json_object_get(root.get(), "is_live"));
 }
 
-double getActivePos(Parameters& params)
+double getActivePos(Parameters& params, std::string currency)
 {
   unique_json root { authRequest(params, "/v1/positions", "") };
   double position;
   if (json_array_size(root.get()) == 0)
   {
-    *params.logFile << "<Bitfinex> WARNING: BTC position not available, return 0.0" << std::endl;
+    *params.logFile << "<Bitfinex> WARNING: Position not available, return 0.0" << std::endl;
     position = 0.0;
   }
   else
   {
+    //TODO filter position by currency
     position = atof(json_string_value(json_object_get(json_array_get(root.get(), 0), "amount")));
   }
   return position;
 }
 
-double getLimitPrice(Parameters& params, double volume, bool isBid)
+double getLimitPrice(Parameters& params, double volume, bool isBid, std::string pair)
 {
+
+  std::string matchingPair = getMatchingPair(pair);
+  if (matchingPair.compare("") == 0) {
+    *params.logFile << "<Bitfinex> Pair not supported" << std::endl;
+    // return "0";
+  }
+  
   auto &exchange  = queryHandle(params);
-  unique_json root { exchange.getRequest("/v1/book/btcusd") };
+  unique_json root { exchange.getRequest("/v1/book/"+matchingPair) };
   json_t *bidask  = json_object_get(root.get(), isBid ? "bids" : "asks");
 
+  //TODO dinamic symbol BTC
   *params.logFile << "<Bitfinex> Looking for a limit price to fill "
                   << std::setprecision(6) << fabs(volume) << " BTC...\n";
   double tmpVol = 0.0;

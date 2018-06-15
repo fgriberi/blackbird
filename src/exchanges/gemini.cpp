@@ -23,7 +23,7 @@ static RestApi& queryHandle(Parameters &params)
   return query;
 }
 
-quote_t getQuote(Parameters &params)
+quote_t getQuote(Parameters &params, std::string pair)
 {
   auto &exchange = queryHandle(params);
   std::string url;
@@ -74,7 +74,7 @@ double getAvail(Parameters& params, std::string currency) {
   return availability;
 }
 
-std::string sendLongOrder(Parameters& params, std::string direction, double quantity, double price) {
+std::string sendLongOrder(Parameters& params, std::string direction, double quantity, double price, std::string pair) {
   *params.logFile << "<Gemini> Trying to send a \"" << direction << "\" limit order: "
                   << std::setprecision(6) << quantity << "@$"
                   << std::setprecision(2) << price << "...\n";
@@ -95,11 +95,11 @@ bool isOrderComplete(Parameters& params, std::string orderId) {
   return json_is_false(json_object_get(root.get(), "is_live"));
 }
 
-double getActivePos(Parameters& params) {
+double getActivePos(Parameters& params, std::string currency) {
   return getAvail(params, "btc");
 }
 
-double getLimitPrice(Parameters& params, double volume, bool isBid)
+double getLimitPrice(Parameters& params, double volume, bool isBid, std::string pair)
 {
   auto &exchange = queryHandle(params);
   unique_json root { exchange.getRequest("/v1/book/btcusd") };

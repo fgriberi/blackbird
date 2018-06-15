@@ -44,19 +44,94 @@ static json_t* checkResponse(std::ostream &logFile, json_t *root)
   return root;
 }
 
-quote_t getQuote(Parameters &params)
+std::string getMatchingPair(std::string pair) {
+  if (pair.compare("btcusd") == 0) {
+    return "btc_usd";
+  } else if (pair.compare("ethusd") == 0) {
+    return "eth_usd";
+  } else if (pair.compare("btceur") == 0) {
+    return "btc_eur";
+  } else if (pair.compare("etheur") == 0) {
+    return "eth_eur";
+  } else if (pair.compare("bchusd") == 0) {
+    return "bch_usd";
+  } else {
+    return "";
+  }
+}
+
+std::string getTickerPair(std::string pair) {
+  if (pair.compare("btcusd") == 0) {
+    return "BTC/USD";
+  } else if (pair.compare("ethusd") == 0) {
+    return "ETH/USD";
+  } else if (pair.compare("btceur") == 0) {
+    return "BTC/EUR";
+  } else if (pair.compare("etheur") == 0) {
+    return "ETH/EUR";
+  } else if (pair.compare("bchusd") == 0) {
+    return "BCH/USD";
+  } else {
+    return "";
+  }
+}
+
+int getMatchingSymbols(std::string pair, std::string symbols[]) {
+  if (pair.compare("btcusd") == 0) {
+    symbols[0] = "BTC";
+    symbols[1] = "USD";
+    symbols[2] = "3";
+    return 1;
+  } else if (pair.compare("ethusd") == 0) {
+    symbols[0] = "ETH";
+    symbols[1] = "USD";
+    symbols[2] = "3";
+    return 1;
+  } else if (pair.compare("btceur") == 0) {
+    symbols[0] = "BTC";
+    symbols[1] = "EUR";
+    symbols[2] = "3";
+    return 1;
+  } else if (pair.compare("etheur") == 0) {
+    symbols[0] = "ETH";
+    symbols[1] = "EUR";
+    symbols[2] = "3";
+    return 1;
+  } else if (pair.compare("bchusd") == 0) {
+    symbols[0] = "BCH";
+    symbols[1] = "USD";
+    symbols[2] = "2";
+    return 1;
+  } else {
+    return 0;
+  }
+}
+
+
+quote_t getQuote(Parameters &params, std::string pair)
 {
+  std::string tickerPair = getTickerPair(pair);
+  if (tickerPair.compare("") == 0) {
+    *params.logFile << "<Cexio> Pair not supported" << std::endl;
+    // return "0";
+  }
+
   auto &exchange = queryHandle(params); 
-  unique_json root { exchange.getRequest("/ticker/BTC/USD") };
+  unique_json root { exchange.getRequest("/ticker/"+tickerPair) };
 
   double bidValue = json_number_value(json_object_get(root.get(), "bid"));
   double askValue = json_number_value(json_object_get(root.get(), "ask"));
+
+  // *params.logFile << "<Cexio> Opening test position" << std::endl;
+  // openPosition(params, "sell", 3, 1090.01, pair);
 
   return std::make_pair(bidValue, askValue);
 }
 
 double getAvail(Parameters& params, std::string currency)
 {
+  *params.logFile << "<Cexio> getAvail" << std::endl;
+
   double available = 0.0;
   std::transform(currency.begin(), currency.end(), currency.begin(), ::toupper);
   const char * curr_ = currency.c_str();
@@ -69,14 +144,14 @@ double getAvail(Parameters& params, std::string currency)
   return available;
 }
 
-std::string sendLongOrder(Parameters& params, std::string direction, double quantity, double price)
+std::string sendLongOrder(Parameters& params, std::string direction, double quantity, double price, std::string pair)
 {
     g_bShort = false;
-    return sendOrder(params, direction, quantity, price);
+    return sendOrder(params, direction, quantity, price, pair);
 
 }
 
-std::string sendShortOrder(Parameters& params, std::string direction, double quantity, double price)
+std::string sendShortOrder(Parameters& params, std::string direction, double quantity, double price, std::string pair)
 {
   //return sendOrder(params, direction, quantity, price);
 
@@ -84,11 +159,11 @@ std::string sendShortOrder(Parameters& params, std::string direction, double qua
 
   if(direction.compare("sell") == 0)
   {
-     return openPosition(params, direction, quantity, price);
+     return openPosition(params, direction, quantity, price, pair);
 
   }else if(direction.compare("buy")== 0){
 
-    return closePosition(params);
+    return closePosition(params, pair);
 
   }
 
@@ -96,12 +171,24 @@ std::string sendShortOrder(Parameters& params, std::string direction, double qua
 }
 
 
-std::string openPosition(Parameters& params, std::string direction, double quantity, double price)
+std::string openPosition(Parameters& params, std::string direction, double quantity, double price, std::string pair)
 {
+
+  std::string matchingPair = getMatchingPair(pair);
+  if (matchingPair.compare("") == 0) {
+    *params.logFile << "<Cexio> Pair not supported" << std::endl;
+    return "0";
+  }
+  std::string tickerPair = getTickerPair(pair);
+  if (tickerPair.compare("") == 0) {
+    *params.logFile << "<Cexio> Pair not supported" << std::endl;
+    return "0";
+  }  
+
    using namespace std;
-   string pair = "btc_usd";
+  //  string pair = matchingPair;
    string orderId = "";
-   *params.logFile << "<Cexio> Trying to open a " << pair << " " << direction << " position: " << quantity << "@" << price << endl;
+   *params.logFile << "<Cexio> Trying to open a " << matchingPair << " " << direction << " position: " << quantity << "@" << price << endl;
 
    ostringstream oss;
    string ptype = "";
@@ -116,20 +203,26 @@ std::string openPosition(Parameters& params, std::string direction, double quant
      ptype = "long";
      stopLossPrice -= 500;
    }
-  
-   oss << "symbol=" << "BTC" << "&amount=" <<  setprecision(8) << quantity << "&msymbol=" << "USD" << "&leverage=" << 3 << "&ptype=" << ptype << "&anySlippage=" << "true" << "&eoprice=" <<  setprecision(8) << price << "&stopLossPrice=" << stopLossPrice;
+
+   std::string symbols[3];
+   getMatchingSymbols(pair, symbols);;
+   *params.logFile << "<Cexio> symbol=" << symbols[0] << "&amount=" <<  setprecision(8) << quantity << "&msymbol=" << symbols[1] << "&leverage=" << symbols[2] << "&ptype=" << ptype << "&anySlippage=" << "true" << "&eoprice=" <<  setprecision(8) << price << "&stopLossPrice=" << stopLossPrice;
+   oss << "symbol=" << symbols[0] << "&amount=" <<  setprecision(8) << quantity << "&msymbol=" << symbols[1] << "&leverage=" << symbols[2] << "&ptype=" << ptype << "&anySlippage=" << "true" << "&eoprice=" <<  setprecision(8) << price << "&stopLossPrice=" << stopLossPrice;
 
    string options = oss.str();
 
-   unique_json root {authRequest(params,"/open_position/BTC/USD/",options)};
+   unique_json root {authRequest(params,"/open_position/"+tickerPair,options)};
    auto error = json_string_value(json_object_get(root.get(),"error"));
+  //  auto error = json_object_get(root, "error");
+
 
    ostringstream oss1;
 
    if(error){
 
-        orderId = "0";
-
+        *params.logFile << "<Cexio>Open Position Error: " << error << ")\n" << endl;
+        // orderId = "0";
+        exit(0);
     }else{
         
         oss1 << json_number_value(json_object_get(json_object_get(root.get(),"data"),"id"));
@@ -144,8 +237,14 @@ std::string openPosition(Parameters& params, std::string direction, double quant
     return orderId;
 }
 
-std::string closePosition(Parameters& params)
+std::string closePosition(Parameters& params, std::string pair)
 {
+
+    std::string tickerPair = getTickerPair(pair);
+    if (tickerPair.compare("") == 0) {
+      *params.logFile << "<Cexio> Pair not supported" << std::endl;
+      return "0";
+    }  
 
 
      if(g_strOpenId  == "0")  return "0";
@@ -157,7 +256,7 @@ std::string closePosition(Parameters& params)
      oss << "id=" << tmpId;
      string options = oss.str();
      
-     unique_json root {authRequest(params,"/close_position/BTC/USD/",options)};
+     unique_json root {authRequest(params,"/close_position/"+tickerPair,options)};
      auto error = json_string_value(json_object_get(root.get(),"error"));
 
      ostringstream oss1;
@@ -209,18 +308,29 @@ return orderId;
 
 
 
-std::string sendOrder(Parameters& params, std::string direction, double quantity, double price)
+std::string sendOrder(Parameters& params, std::string direction, double quantity, double price, std::string pair)
 {
+  std::string matchingPair = getMatchingPair(pair);
+  if (matchingPair.compare("") == 0) {
+    *params.logFile << "<Cexio> Pair not supported" << std::endl;
+    return "0";
+  }
+  std::string tickerPair = getTickerPair(pair);
+  if (tickerPair.compare("") == 0) {
+    *params.logFile << "<Cexio> Pair not supported" << std::endl;
+    return "0";
+  }  
+
   using namespace std;
-  string pair = "btc_usd";
+  // string pair = matchingPair;
   string orderId = "";
-  *params.logFile << "<Cexio> Trying to send a " << pair << " " << direction << " limit order: " << quantity << "@" << price << endl;
+  *params.logFile << "<Cexio> Trying to send a " << matchingPair << " " << direction << " limit order: " << quantity << "@" << price << endl;
 
   ostringstream oss;
   oss << "type=" << direction << "&amount=" << quantity << "&price=" << fixed << setprecision(2) << price;
   string options = oss.str();
 
-  unique_json root { authRequest(params, "/place_order/BTC/USD/", options) };
+  unique_json root { authRequest(params, "/place_order/"+tickerPair, options) };
   auto error = json_string_value(json_object_get(root.get(), "error"));
   if (error){
     // auto dump = json_dumps(root.get(), 0);
@@ -280,12 +390,18 @@ bool isOrderComplete(Parameters& params, std::string orderId)
   
 }
 
-double getActivePos(Parameters& params) { return getAvail(params, "btc"); }
+double getActivePos(Parameters& params, std::string currency) { return getAvail(params, currency); }
 
-double getLimitPrice(Parameters &params, double volume, bool isBid)
+double getLimitPrice(Parameters &params, double volume, bool isBid, std::string pair)
 {
+  std::string tickerPair = getTickerPair(pair);
+  if (tickerPair.compare("") == 0) {
+    *params.logFile << "<Cexio> Pair not supported" << std::endl;
+    // return "0";
+  }  
+
   auto &exchange = queryHandle(params);
-  auto root = unique_json(exchange.getRequest("/order_book/BTC/USD/"));
+  auto root = unique_json(exchange.getRequest("/order_book/"+tickerPair));
   auto branch = json_object_get(root.get(), isBid ? "bids" : "asks");
 
   // loop on volume
@@ -339,21 +455,21 @@ void testCexio() {
 
   string orderId;
 
-  cout << "Current value BTC_USD bid: " << getQuote(params).bid() << endl;
-  cout << "Current value BTC_USD ask: " << getQuote(params).ask() << endl;
-  cout << "Current balance BTC: " << getAvail(params, "BTC") << endl;
-  cout << "Current balance BCH: " << getAvail(params, "BCH") << endl;
-  cout << "Current balance ETH: " << getAvail(params, "ETH") << endl;
-  cout << "Current balance LTC: " << getAvail(params, "LTC") << endl;
-  cout << "Current balance DASH: " << getAvail(params, "DASH") << endl;
-  cout << "Current balance ZEC: " << getAvail(params, "ZEC") << endl;
-  cout << "Current balance USD: " << getAvail(params, "USD") << endl;
-  cout << "Current balance EUR: " << getAvail(params, "EUR")<< endl;
-  cout << "Current balance GBP: " << getAvail(params, "GBP") << endl;
-  cout << "Current balance RUB: " << getAvail(params, "RUB") << endl;
-  cout << "Current balance GHS: " << getAvail(params, "GHS") << endl;
-  cout << "Current bid limit price for 10 units: " << getLimitPrice(params, 10.0, true) << endl;
-  cout << "Current ask limit price for 10 units: " << getLimitPrice(params, 10.0, false) << endl;
+  // cout << "Current value BTC_USD bid: " << getQuote(params).bid() << endl;
+  // cout << "Current value BTC_USD ask: " << getQuote(params).ask() << endl;
+  // cout << "Current balance BTC: " << getAvail(params, "BTC") << endl;
+  // cout << "Current balance BCH: " << getAvail(params, "BCH") << endl;
+  // cout << "Current balance ETH: " << getAvail(params, "ETH") << endl;
+  // cout << "Current balance LTC: " << getAvail(params, "LTC") << endl;
+  // cout << "Current balance DASH: " << getAvail(params, "DASH") << endl;
+  // cout << "Current balance ZEC: " << getAvail(params, "ZEC") << endl;
+  // cout << "Current balance USD: " << getAvail(params, "USD") << endl;
+  // cout << "Current balance EUR: " << getAvail(params, "EUR")<< endl;
+  // cout << "Current balance GBP: " << getAvail(params, "GBP") << endl;
+  // cout << "Current balance RUB: " << getAvail(params, "RUB") << endl;
+  // cout << "Current balance GHS: " << getAvail(params, "GHS") << endl;
+  // cout << "Current bid limit price for 10 units: " << getLimitPrice(params, 10.0, true) << endl;
+  // cout << "Current ask limit price for 10 units: " << getLimitPrice(params, 10.0, false) << endl;
 
   // cout << "Sending buy order - TXID: " ;
   // orderId = sendLongOrder(params, "buy", 0.002, 9510);

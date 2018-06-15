@@ -26,8 +26,56 @@ static RestApi &queryHandle(Parameters &params)
   return query;
 }
 
-quote_t getQuote(Parameters &params)
+std::string getMatchingPair(std::string pair) {
+  if (pair.compare("btcusd") == 0) {
+    return "XXBTZUSD";
+  } else if (pair.compare("ethusd") == 0) {
+    return "XETHZUSD";
+  } else if (pair.compare("btceur") == 0) {
+    return "XXBTZEUR";
+  } else if (pair.compare("etheur") == 0) {
+    return "XETHZEUR";
+  } else if (pair.compare("bchusd") == 0) {
+    return "BCHUSD";
+  } else {
+    return "";
+  }
+}
+
+// quote_t getQuote(Parameters &params, std::string pair)
+// {
+//   std::string matchingPair = getMatchingPair(pair);
+//   if (matchingPair.compare("") == 0) {
+//     *params.logFile << "<Kraken> Pair not supported" << std::endl;
+//     // return "0";
+//   }
+
+//   if (krakenGotTicker) {
+//     krakenGotTicker = false;
+//   } else {
+//     auto &exchange = queryHandle(params);
+//     krakenTicker.reset(exchange.getRequest("/0/public/Ticker?pair="+ matchingPair));
+//     krakenGotTicker = true;
+//   }
+
+//   json_t *root = krakenTicker.get();  
+//   const char *quote = json_string_value(json_array_get(json_object_get(json_object_get(json_object_get(root, "result"), matchingPair), "b"), 0));
+//   auto bidValue = quote ? std::stod(quote) : 0.0;
+
+//   quote = json_string_value(json_array_get(json_object_get(json_object_get(json_object_get(root, "result"), matchingPair), "a"), 0));
+//   auto askValue = quote ? std::stod(quote) : 0.0;
+
+//   return std::make_pair(bidValue, askValue);
+// }
+
+quote_t getQuote(Parameters &params, std::string pair)
 {
+  std::string matchingPair = getMatchingPair(pair);
+  if (matchingPair.compare("") == 0) {
+    *params.logFile << "<Kraken> Pair not supported" << std::endl;
+    // return "0";
+  }
+  
   if (krakenGotTicker)
   {
     krakenGotTicker = false;
@@ -35,21 +83,33 @@ quote_t getQuote(Parameters &params)
   else
   {
     auto &exchange = queryHandle(params);
-    krakenTicker.reset(exchange.getRequest("/0/public/Ticker?pair=XXBTZUSD"));
+    krakenTicker.reset(exchange.getRequest("/0/public/Ticker?pair="+matchingPair));
     krakenGotTicker = true;
   }
+
+  const char * c = matchingPair.c_str();
+
   json_t *root = krakenTicker.get();
-  const char *quote = json_string_value(json_array_get(json_object_get(json_object_get(json_object_get(root, "result"), "XXBTZUSD"), "b"), 0));
+  const char *quote = json_string_value(json_array_get(json_object_get(json_object_get(json_object_get(root, "result"), c), "b"), 0));
   auto bidValue = quote ? std::stod(quote) : 0.0;
 
-  quote = json_string_value(json_array_get(json_object_get(json_object_get(json_object_get(root, "result"), "XXBTZUSD"), "a"), 0));
+  quote = json_string_value(json_array_get(json_object_get(json_object_get(json_object_get(root, "result"), c), "a"), 0));
   auto askValue = quote ? std::stod(quote) : 0.0;
+
+
+  // std::string orderId;
+  // *params.logFile << "Sending Short XMR order for 0.177 XMR @BID! USD: ";
+  // orderId = sendShortOrder(params,"sell",0.372817, 1125.90, pair);
+  // *params.logFile << "Order: " << orderId;
+
 
   return std::make_pair(bidValue, askValue);
 }
 
 double getAvail(Parameters &params, std::string currency)
 {
+  *params.logFile << "<Kraken> getAvail" << std::endl;
+
   unique_json root{authRequest(params, "/0/private/Balance")};
   json_t *result = json_object_get(root.get(), "result");
   if (json_object_size(result) == 0)
@@ -66,35 +126,53 @@ double getAvail(Parameters &params, std::string currency)
   {
     const char *avail_str = json_string_value(json_object_get(result, "XXBT"));
     available = avail_str ? atof(avail_str) : 0.0;
-  }
-  else
-  {
+  } else if (currency.compare("eur") == 0) {
+    const char * avail_str = json_string_value(json_object_get(result, "EUR"));
+    available = avail_str ? atof(avail_str) : 0.0;
+  } else if (currency.compare("eth") == 0) {
+    const char * avail_str = json_string_value(json_object_get(result, "ETH"));
+    available = avail_str ? atof(avail_str) : 0.0;
+  } else if (currency.compare("xrp") == 0) {
+    const char * avail_str = json_string_value(json_object_get(result, "XXRP"));
+    available = avail_str ? atof(avail_str) : 0.0;
+  } else if (currency.compare("bch") == 0) {
+    const char * avail_str = json_string_value(json_object_get(result, "BCH"));
+    available = avail_str ? atof(avail_str) : 0.0;
+  } else {
     *params.logFile << "<Kraken> Currency not supported" << std::endl;
   }
+
   return available;
 }
 
-std::string sendLongOrder(Parameters &params, std::string direction, double quantity, double price)
+std::string sendLongOrder(Parameters& params, std::string direction, double quantity, double price, std::string pair) 
 {
-  return sendOrder(params, direction, quantity, price);
+  return sendOrder(params, direction, quantity, price, pair);
 }
 
-std::string sendOrder(Parameters &params, std::string direction, double quantity, double price)
+std::string sendOrder(Parameters &params, std::string direction, double quantity, double price, std::string pair)
 {
   if (direction.compare("buy") != 0 && direction.compare("sell") != 0)
   {
     *params.logFile << "<Kraken> Error: Neither \"buy\" nor \"sell\" selected" << std::endl;
     return "0";
   }
+  std::string matchingPair = getMatchingPair(pair);
+  if (matchingPair.compare("") == 0) {
+    *params.logFile << "<Kraken> Pair not supported" << std::endl;
+    return "0";
+  }
   *params.logFile << "<Kraken> Trying to send a \"" << direction << "\" limit order: "
                   << std::setprecision(6) << quantity << " @ $"
                   << std::setprecision(2) << price << "...\n";
-  std::string pair = "XXBTZUSD";
+				  
+  				  
+  // std::string pair = matchingPair;
   std::string type = direction;
   std::string ordertype = "limit";
   std::string pricelimit = std::to_string(price);
   std::string volume = std::to_string(quantity);
-  std::string options = "pair=" + pair + "&type=" + type + "&ordertype=" + ordertype + "&price=" + pricelimit + "&volume=" + volume + "&trading_agreement=agree";
+  std::string options = "pair=" + matchingPair + "&type=" + type + "&ordertype=" + ordertype + "&price=" + pricelimit + "&volume=" + volume + "&trading_agreement=agree";
   unique_json root{authRequest(params, "/0/private/AddOrder", options)};
   json_t *res = json_object_get(root.get(), "result");
   if (json_is_object(res) == 0)
@@ -108,17 +186,23 @@ std::string sendOrder(Parameters &params, std::string direction, double quantity
   return txid;
 }
 
-std::string sendShortOrder(Parameters &params, std::string direction, double quantity, double price)
+std::string sendShortOrder(Parameters &params, std::string direction, double quantity, double price, std::string pair)
 {
   if (direction.compare("buy") != 0 && direction.compare("sell") != 0)
   {
     *params.logFile << "<Kraken> Error: Neither \"buy\" nor \"sell\" selected" << std::endl;
     return "0";
   }
+  std::string matchingPair = getMatchingPair(pair);
+  if (matchingPair.compare("") == 0) {
+    *params.logFile << "<Kraken> Pair not supported" << std::endl;
+    return "0";
+  }
+  
   *params.logFile << "<Kraken> Trying to send a short \"" << direction << "\" limit order: "
                   << std::setprecision(6) << quantity << " @ $"
                   << std::setprecision(2) << price << "...\n";
-  std::string pair = "XXBTZUSD";
+  // std::string pair = matchingPair;
   std::string type = direction;
   std::string ordertype;
   std::string options;
@@ -126,7 +210,8 @@ std::string sendShortOrder(Parameters &params, std::string direction, double qua
   std::string volume = std::to_string(quantity);
   std::string leverage = "2";
   ordertype = "limit";
-  options = "pair=" + pair + "&type=" + type + "&ordertype=" + ordertype + "&price=" + pricelimit + "&volume=" + volume + "&leverage=" + leverage + "&trading_agreement=agree";
+  options = "pair=" + matchingPair + "&type=" + type + "&ordertype=" + ordertype + "&price=" + pricelimit + "&volume=" + volume + "&leverage=" + leverage + "&trading_agreement=agree";
+  // options = "pair=" + matchingPair + "&type=" + type + "&ordertype=" + ordertype + "&price=" + pricelimit + "&volume=" + volume + "&trading_agreement=agree";
   unique_json root{authRequest(params, "/0/private/AddOrder", options)};
   json_t *res = json_object_get(root.get(), "result");
   if (json_is_object(res) == 0)
@@ -165,16 +250,24 @@ bool isOrderComplete(Parameters &params, std::string orderId)
   }
 }
 
-double getActivePos(Parameters &params)
+double getActivePos(Parameters &params, std::string currency)
 {
-  return getAvail(params, "btc");
+  return getAvail(params, currency);
 }
 
-double getLimitPrice(Parameters &params, double volume, bool isBid)
+double getLimitPrice(Parameters &params, double volume, bool isBid, std::string pair)
 {
+  std::string matchingPair = getMatchingPair(pair);
+  if (matchingPair.compare("") == 0) {
+    *params.logFile << "<Kraken> Pair not supported" << std::endl;
+    // return "0";
+  }
   auto &exchange = queryHandle(params);
-  unique_json root { exchange.getRequest("/0/public/Depth?pair=XXBTZUSD") };
-  auto branch = json_object_get(json_object_get(root.get(), "result"), "XXBTZUSD");
+  unique_json root { exchange.getRequest("/0/public/Depth?pair="+ matchingPair) };
+
+  const char * c = matchingPair.c_str();
+
+  auto branch = json_object_get(json_object_get(root.get(), "result"), c);
   branch = json_object_get(branch, isBid ? "bids" : "asks");
 
   // loop on volume
@@ -238,16 +331,16 @@ void testKraken()
   Parameters params("bird.conf");
   params.logFile = new std::ofstream("./test.log", std::ofstream::trunc);
 
-  std::string orderId;
+  // std::string orderId;
 
-  std::cout << "Current value LEG1_LEG2 bid: " << getQuote(params).bid() << std::endl;
-  std::cout << "Current value LEG1_LEG2 ask: " << getQuote(params).ask() << std::endl;
-  std::cout << "Current balance BTC: " << getAvail(params, "btc") << std::endl;
-  std::cout << "Current balance USD: " << getAvail(params, "usd") << std::endl;
-  std::cout << "Current balance ETH: " << getAvail(params, "eth") << std::endl;
-  std::cout << "Current balance XMR: " << getAvail(params, "xmr") << std::endl;
-  std::cout << "current bid limit price for .09 units: " << getLimitPrice(params, 0.09, true) << std::endl;
-  std::cout << "Current ask limit price for .09 units: " << getLimitPrice(params, 0.09, false) << std::endl;
+  // std::cout << "Current value LEG1_LEG2 bid: " << getQuote(params).bid() << std::endl;
+  // std::cout << "Current value LEG1_LEG2 ask: " << getQuote(params).ask() << std::endl;
+  // std::cout << "Current balance BTC: " << getAvail(params, "btc") << std::endl;
+  // std::cout << "Current balance USD: " << getAvail(params, "usd") << std::endl;
+  // std::cout << "Current balance ETH: " << getAvail(params, "eth") << std::endl;
+  // std::cout << "Current balance XMR: " << getAvail(params, "xmr") << std::endl;
+  // std::cout << "current bid limit price for .09 units: " << getLimitPrice(params, 0.09, true) << std::endl;
+  // std::cout << "Current ask limit price for .09 units: " << getLimitPrice(params, 0.09, false) << std::endl;
   //std::cout << "Sending buy order for 0.01 XMR @ $100 USD - TXID: " << std::endl;
   //orderId = sendLongOrder(params, "buy", 0.01, 100);
   //std::cout << orderId << std::endl;

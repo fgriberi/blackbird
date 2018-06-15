@@ -14,7 +14,7 @@ static RestApi& queryHandle(Parameters &params)
   return query;
 }
 
-quote_t getQuote(Parameters &params)
+quote_t getQuote(Parameters &params, std::string pair)
 {
   auto &exchange = queryHandle(params);
   unique_json root { exchange.getRequest("/v1/markets/XBTUSD/ticker") };
@@ -33,12 +33,12 @@ double getAvail(Parameters& params, std::string currency) {
   return 0.0;
 }
 
-double getActivePos(Parameters& params) {
+double getActivePos(Parameters& params, std::string currency) {
   // TODO
   return 0.0;
 }
 
-double getLimitPrice(Parameters& params, double volume, bool isBid) {
+double getLimitPrice(Parameters& params, double volume, bool isBid, std::string pair) {
   // TODO
   return 0.0;
 }

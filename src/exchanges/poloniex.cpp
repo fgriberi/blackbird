@@ -36,7 +36,7 @@ static json_t* checkResponse(std::ostream &logFile, json_t *root)
 
 // We use ETH/BTC as there is no USD on Poloniex
 // TODO We could show BTC/USDT
-quote_t getQuote(Parameters &params)
+quote_t getQuote(Parameters &params, std::string pair)
 {
   auto &exchange = queryHandle(params);
   unique_json root { exchange.getRequest("/public?command=returnTicker") };
@@ -62,7 +62,7 @@ double getAvail(Parameters &params, std::string currency)
   return funds ? std::stod(funds) : 0.0;
 }
 
-std::string sendLongOrder(Parameters& params, std::string direction, double quantity, double price) {
+std::string sendLongOrder(Parameters& params, std::string direction, double quantity, double price, std::string pair) {
   if (direction.compare("buy") != 0 && direction.compare("sell") != 0) {
     *params.logFile  << "<Poloniex> Error: Neither \"buy\" nor \"sell\" selected" << std::endl;
     return "0";
@@ -77,7 +77,7 @@ std::string sendLongOrder(Parameters& params, std::string direction, double quan
   return txid;
 }
 
-std::string sendShortOrder(Parameters& params, std::string direction, double quantity, double price) {
+std::string sendShortOrder(Parameters& params, std::string direction, double quantity, double price, std::string pair) {
   // TODO
   return "0";
 }
@@ -95,7 +95,7 @@ bool isOrderComplete(Parameters& params, std::string orderId)
   return true;
 }
 
-double getActivePos(Parameters& params) {
+double getActivePos(Parameters& params, std::string currency) {
   // TODO: When we add the new getActivePos style uncomment this
   // double activeSize = 0.0;
   // if (!orderId.empty()){
@@ -118,7 +118,7 @@ double getActivePos(Parameters& params) {
   return getAvail(params, "BTC");
 }
 
-double getLimitPrice(Parameters& params, double volume, bool isBid) {
+double getLimitPrice(Parameters& params, double volume, bool isBid, std::string pair) {
   auto &exchange = queryHandle(params);
   // TODO: build real curr string
   //std::string uri = "/public?command=returnOrderBook&currencyPair=";

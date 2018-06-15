@@ -25,7 +25,7 @@ static RestApi& queryHandle(Parameters &params)
   return query;
 }
 
-quote_t getQuote(Parameters &params)
+quote_t getQuote(Parameters &params, std::string pair)
 {
   auto &exchange = queryHandle(params); 
   auto root = unique_json(exchange.getRequest("/v2/ticker?book=btc_usd"));
@@ -63,7 +63,7 @@ double getAvail(Parameters& params, std::string currency)
 }
 
 
-std::string sendLongOrder(Parameters& params, std::string direction, double quantity, double price)
+std::string sendLongOrder(Parameters& params, std::string direction, double quantity, double price, std::string pair)
 {
   if (direction.compare("buy") != 0 && direction.compare("sell") != 0) {
     *params.logFile  << "<QuadrigaCX> Error: Neither \"buy\" nor \"sell\" selected" << std::endl;
@@ -125,12 +125,12 @@ bool isOrderComplete(Parameters& params, std::string orderId)
    
 }
 
-double getActivePos(Parameters& params) {
+double getActivePos(Parameters& params, std::string currency) {
   return getAvail(params, "btc");
 }
 
 
-double getLimitPrice(Parameters &params, double volume, bool isBid)
+double getLimitPrice(Parameters &params, double volume, bool isBid, std::string pair)
 {
   auto &exchange = queryHandle(params);
   auto root = unique_json(exchange.getRequest("/v2/order_book?book=btc_usd"));
@@ -220,26 +220,26 @@ void testQuadriga(){
     params.quadrigaApi = "";
     params.logFile = new std::ofstream("./test.log" , std::ofstream::trunc);
 
-    std::string orderId;
+    // std::string orderId;
 
-    std::cout << "Current value BTC_USD bid: " << getQuote(params).bid() << std::endl;
-    std::cout << "Current value BTC_USD ask: " << getQuote(params).ask() << std::endl;
-    std::cout << "Current balance BTC: " << getAvail(params, "btc") << std::endl;
-    std::cout << "Current balance USD: " << getAvail(params, "usd")<< std::endl;
-    std::cout << "Current balance ETH: " << getAvail(params, "eth")<< std::endl;
-    std::cout << "Current balance CAD: " << getAvail(params, "cad")<< std::endl;
-    std::cout << "current bid limit price for 10 units: " << getLimitPrice(params, 10.0, true) << std::endl;
-    std::cout << "Current ask limit price for 10 units: " << getLimitPrice(params, 10.0, false) << std::endl;
+    // std::cout << "Current value BTC_USD bid: " << getQuote(params).bid() << std::endl;
+    // std::cout << "Current value BTC_USD ask: " << getQuote(params).ask() << std::endl;
+    // std::cout << "Current balance BTC: " << getAvail(params, "btc") << std::endl;
+    // std::cout << "Current balance USD: " << getAvail(params, "usd")<< std::endl;
+    // std::cout << "Current balance ETH: " << getAvail(params, "eth")<< std::endl;
+    // std::cout << "Current balance CAD: " << getAvail(params, "cad")<< std::endl;
+    // std::cout << "current bid limit price for 10 units: " << getLimitPrice(params, 10.0, true) << std::endl;
+    // std::cout << "Current ask limit price for 10 units: " << getLimitPrice(params, 10.0, false) << std::endl;
 
-    std::cout << "Sending buy order for 0.005 BTC @ 1000 USD - TXID: " ;
-    orderId = sendLongOrder(params, "buy", 0.005, 1000);
-    std:: cout << orderId << std::endl;
-    std::cout << "Buy order is complete: " << isOrderComplete(params, orderId) << std::endl;
+    // std::cout << "Sending buy order for 0.005 BTC @ 1000 USD - TXID: " ;
+    // orderId = sendLongOrder(params, "buy", 0.005, 1000);
+    // std:: cout << orderId << std::endl;
+    // std::cout << "Buy order is complete: " << isOrderComplete(params, orderId) << std::endl;
 
-    std::cout << "Sending sell order for 0.005 BTC @ 5000 USD - TXID: " ;
-    orderId = sendLongOrder(params, "sell", 0.005, 5000);
-    std:: cout << orderId << std::endl;
-    std::cout << "Sell order is complete: " << isOrderComplete(params, orderId) << std::endl;
+    // std::cout << "Sending sell order for 0.005 BTC @ 5000 USD - TXID: " ;
+    // orderId = sendLongOrder(params, "sell", 0.005, 5000);
+    // std:: cout << orderId << std::endl;
+    // std::cout << "Sell order is complete: " << isOrderComplete(params, orderId) << std::endl;
 
 }
 

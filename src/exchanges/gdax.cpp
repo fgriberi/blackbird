@@ -21,16 +21,16 @@ static RestApi &queryHandle(Parameters &params)
   return query;
 }
 
-quote_t getQuote(Parameters &params)
+quote_t getQuote(Parameters &params, std::string pair)
 {
   auto &exchange = queryHandle(params);
-  std::string pair;
-  pair = "/products/";
-  pair += params.leg1.c_str();
-  pair += "-";
-  pair += params.leg2.c_str();
-  pair += "/ticker";
-  unique_json root{exchange.getRequest(pair)};
+  std::string req;
+  req = "/products/";
+  req += params.leg1.c_str();
+  req += "-";
+  req += params.leg2.c_str();
+  req += "/ticker";
+  unique_json root{exchange.getRequest(req)};
   const char *bid, *ask;
   int unpack_fail = json_unpack(root.get(), "{s:s, s:s}", "bid", &bid, "ask", &ask);
   if (unpack_fail)
@@ -68,13 +68,13 @@ double getAvail(Parameters &params, std::string currency)
   return available;
 }
 
-double getActivePos(Parameters &params)
+double getActivePos(Parameters &params, std::string pair)
 {
   // TODO: this is not really a good way to get active positions
   return getAvail(params, "BTC");
 }
 
-double getLimitPrice(Parameters &params, double volume, bool isBid)
+double getLimitPrice(Parameters &params, double volume, bool isBid, std::string pair)
 {
   auto &exchange = queryHandle(params);
   // TODO: Build a real URL with leg1 leg2 and auth post it
@@ -100,7 +100,7 @@ double getLimitPrice(Parameters &params, double volume, bool isBid)
   return p;
 }
 
-std::string sendLongOrder(Parameters &params, std::string direction, double quantity, double price)
+std::string sendLongOrder(Parameters &params, std::string direction, double quantity, double price, std::string pair)
 {
   if (direction.compare("buy") != 0 && direction.compare("sell") != 0)
   {
@@ -110,7 +110,7 @@ std::string sendLongOrder(Parameters &params, std::string direction, double quan
   *params.logFile << "<GDAX> Trying to send a \"" << direction << "\" limit order: "
                   << std::setprecision(8) << quantity << " @ $"
                   << std::setprecision(8) << price << "...\n";
-  std::string pair = "BTC-USD";
+  // std::string pair = "BTC-USD"; //TODO implement matchingpair
   std::string type = direction;
   char buff[300];
   snprintf(buff, 300, "{\"size\":\"%.8f\",\"price\":\"%.8f\",\"side\":\"%s\",\"product_id\": \"%s\"}", quantity, price, type.c_str(), pair.c_str());

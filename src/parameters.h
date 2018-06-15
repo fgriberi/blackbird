@@ -66,6 +66,10 @@ struct Parameters {
   std::string itbitSecret;
   double itbitFees;
   bool itbitEnable;
+  std::string btceApi;
+  std::string btceSecret;
+  double btceFees;
+  bool btceEnable;  
   std::string wexApi;
   std::string wexSecret;
   double wexFees;
