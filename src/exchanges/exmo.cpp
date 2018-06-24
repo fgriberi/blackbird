@@ -11,21 +11,19 @@
 #include <array>
 #include <chrono>
 
-namespace Exmo {
-// Forward declarations
-static json_t* authRequest(Parameters &, const char* URL_Request, std::string URL_Options = "");
-static std::string getSignature(Parameters &, std::string);
+namespace NSExchange
+{
 
-static RestApi& queryHandle(Parameters &params)
+RestApi& Exmo::queryHandle(Parameters &params)
 {
   static RestApi query ("https://api.exmo.com/v1",
                         params.cacert.c_str(), *params.logFile);
   return query;
 }
 
-quote_t getQuote(Parameters &params, std::string pair)
+quote_t Exmo::getQuote(Parameters &params, std::string pair)
 {
-  auto &exchange = queryHandle(params); 
+  auto &exchange = queryHandle(params);
   auto root = unique_json(exchange.getRequest("/order_book/?pair=BTC_USD"));
 
   auto quote = json_string_value(json_object_get(json_object_get(root.get(), "BTC_USD"), "bid_top"));
@@ -38,12 +36,12 @@ quote_t getQuote(Parameters &params, std::string pair)
 }
 
 
-double getAvail(Parameters& params, std::string currency)
+double Exmo::getAvail(Parameters& params, std::string currency)
 {
   double available = 0.0;
   transform(currency.begin(), currency.end(), currency.begin(), ::toupper);
   const char * curr_ = currency.c_str();
-  
+
   unique_json root { authRequest(params, "/user_info") };
   const char * avail_str = json_string_value(json_object_get(json_object_get(root.get(), "balances"), curr_));
   available = avail_str ? atof(avail_str) : 0.0;
@@ -52,7 +50,8 @@ double getAvail(Parameters& params, std::string currency)
 
 // TODO multi currency support
 //std::string sendLongOrder(Parameters& params, std::string direction, double quantity, double price, std::string pair) {
-std::string sendLongOrder(Parameters& params, std::string direction, double quantity, double price, std::string pair) {
+std::string Exmo::sendLongOrder(Parameters& params, std::string direction, double quantity, double price, std::string pair)
+{
   using namespace std;
   // string pair = "btc_usd"; // TODO remove when multi currency support
   *params.logFile << "<Exmo> Trying to send a " << pair << " " << direction << " limit order: " << quantity << "@" << price << endl;
@@ -73,20 +72,26 @@ std::string sendLongOrder(Parameters& params, std::string direction, double quan
   }
   else {
     *params.logFile << "<Exmo> Done, order ID: " << orderId << endl;
-  } 
+  }
   return orderId;
 }
 
+std::string Exmo::sendShortOrder(Parameters &params, std::string direction, double quantity, double price, std::string pair)
+{
+  //TODO
+  return "0";
+}
 
 // TODO multi currency support
-//bool isOrderComplete(Parameters& params, std::string orderId, std::string pair) 
-bool isOrderComplete(Parameters& params, std::string orderId) {
+//bool isOrderComplete(Parameters& params, std::string orderId, std::string pair)
+bool Exmo::isOrderComplete(Parameters& params, std::string orderId)
+{
   using namespace std;
   string pair = "btc_usd"; // TODO remove when multi currency support
   transform(pair.begin(), pair.end(), pair.begin(), ::toupper);
-  
+
   unique_json rootOrd { authRequest(params, "/user_open_orders") };
-  
+
   int orders  = json_array_size(json_object_get(rootOrd.get(), pair.c_str()));
   string order_id;
 
@@ -95,14 +100,14 @@ bool isOrderComplete(Parameters& params, std::string orderId) {
     if (orderId.compare(order_id) == 0)
       return false;
   }
-  
+
   string options;
   options  = "pair=" + pair;
   options  += "&limit=1";
 
   unique_json rootTr { authRequest(params, "/user_trades", options) };
   order_id = to_string(json_integer_value(json_object_get(json_array_get(json_object_get(rootTr.get(), pair.c_str()), 0), "order_id")));
-  if (orderId.compare(order_id) == 0) 
+  if (orderId.compare(order_id) == 0)
     return true;
   else {
     auto dump = json_dumps(rootTr.get(), 0);
@@ -113,12 +118,13 @@ bool isOrderComplete(Parameters& params, std::string orderId) {
 }
 
 
-double getActivePos(Parameters& params, std::string currency) {
+double Exmo::getActivePos(Parameters& params, std::string currency)
+{
   return getAvail(params, "btc");
 }
 
 
-double getLimitPrice(Parameters &params, double volume, bool isBid, std::string pair)
+double Exmo::getLimitPrice(Parameters &params, double volume, bool isBid, std::string pair)
 {
   auto &exchange = queryHandle(params);
   auto root = unique_json(exchange.getRequest("/order_book?pair=BTC_USD"));
@@ -145,7 +151,8 @@ double getLimitPrice(Parameters &params, double volume, bool isBid, std::string 
 }
 
 
-json_t* authRequest(Parameters &params, const char *request, std::string options) {
+json_t* Exmo::authRequest(Parameters &params, const char *request, std::string options)
+{
   using namespace std;
   static unsigned long nonce = time(nullptr);
   nonce++;
@@ -155,7 +162,7 @@ json_t* authRequest(Parameters &params, const char *request, std::string options
   if (!options.empty())
     req += "&" + options;
 
-  // FIXME against the API definition exmo actualy seems don't using options in signature 
+  // FIXME against the API definition exmo actualy seems don't using options in signature
   string opt = "";
 
   array<string, 3> headers {
@@ -163,7 +170,7 @@ json_t* authRequest(Parameters &params, const char *request, std::string options
     "Key:"   + params.exmoApi,
     "Sign:"  + getSignature(params, opt),
   };
-  
+
   // cURL request
   auto &exchange = queryHandle(params);
   auto ret = exchange.postRequest(req,
@@ -172,19 +179,19 @@ json_t* authRequest(Parameters &params, const char *request, std::string options
   //auto dump = json_dumps(ret, 0);
   //*params.logFile << "<Exmo> Debug, Server Return Message: " << dump << std::endl << std::endl;
   //free(dump);
-  
+
   return ret;
 }
 
-std::string getSignature(Parameters& params, std::string msg) {
-  
+std::string Exmo::getSignature(Parameters& params, std::string msg)
+{
   HMAC_SHA512 hmac_sha512(params.exmoSecret.c_str(), msg);
   return hmac_sha512.hex_digest();
 }
 
 
-void testExmo() {
-
+void Exmo::testExmo()
+{
   using namespace std;
   Parameters params("blackbird.conf");
   //params.exmoSecret = "";
@@ -219,4 +226,4 @@ void testExmo() {
   //}
 }
 
-}
+} //namespace NSExchange

@@ -14,22 +14,20 @@
 #include <cmath>
 #include <algorithm>
 
-namespace Cexio {
-
-static json_t* authRequest(Parameters &, std::string, std::string);
+namespace NSExchange
+{
 
 static bool g_bShort= false;
 static std::string g_strOpenId = "0";
 
-
-static RestApi& queryHandle(Parameters &params)
+RestApi& Cexio::queryHandle(Parameters &params)
 {
   static RestApi query ("https://cex.io/api",
                         params.cacert.c_str(), *params.logFile);
   return query;
 }
 
-static json_t* checkResponse(std::ostream &logFile, json_t *root)
+json_t* Cexio::checkResponse(std::ostream &logFile, json_t *root)
 {
   auto errstatus = json_object_get(root, "error");
 
@@ -44,7 +42,8 @@ static json_t* checkResponse(std::ostream &logFile, json_t *root)
   return root;
 }
 
-std::string getMatchingPair(std::string pair) {
+std::string Cexio::getMatchingPair(std::string pair)
+{
   if (pair.compare("btcusd") == 0) {
     return "btc_usd";
   } else if (pair.compare("ethusd") == 0) {
@@ -60,7 +59,8 @@ std::string getMatchingPair(std::string pair) {
   }
 }
 
-std::string getTickerPair(std::string pair) {
+std::string Cexio::getTickerPair(std::string pair)
+{
   if (pair.compare("btcusd") == 0) {
     return "BTC/USD";
   } else if (pair.compare("ethusd") == 0) {
@@ -76,7 +76,8 @@ std::string getTickerPair(std::string pair) {
   }
 }
 
-int getMatchingSymbols(std::string pair, std::string symbols[]) {
+int Cexio::getMatchingSymbols(std::string pair, std::string symbols[])
+{
   if (pair.compare("btcusd") == 0) {
     symbols[0] = "BTC";
     symbols[1] = "USD";
@@ -107,8 +108,7 @@ int getMatchingSymbols(std::string pair, std::string symbols[]) {
   }
 }
 
-
-quote_t getQuote(Parameters &params, std::string pair)
+quote_t Cexio::getQuote(Parameters &params, std::string pair)
 {
   std::string tickerPair = getTickerPair(pair);
   if (tickerPair.compare("") == 0) {
@@ -116,7 +116,7 @@ quote_t getQuote(Parameters &params, std::string pair)
     // return "0";
   }
 
-  auto &exchange = queryHandle(params); 
+  auto &exchange = queryHandle(params);
   unique_json root { exchange.getRequest("/ticker/"+tickerPair) };
 
   double bidValue = json_number_value(json_object_get(root.get(), "bid"));
@@ -128,7 +128,7 @@ quote_t getQuote(Parameters &params, std::string pair)
   return std::make_pair(bidValue, askValue);
 }
 
-double getAvail(Parameters& params, std::string currency)
+double Cexio::getAvail(Parameters& params, std::string currency)
 {
   *params.logFile << "<Cexio> getAvail" << std::endl;
 
@@ -144,14 +144,14 @@ double getAvail(Parameters& params, std::string currency)
   return available;
 }
 
-std::string sendLongOrder(Parameters& params, std::string direction, double quantity, double price, std::string pair)
+std::string Cexio::sendLongOrder(Parameters& params, std::string direction, double quantity, double price, std::string pair)
 {
     g_bShort = false;
     return sendOrder(params, direction, quantity, price, pair);
 
 }
 
-std::string sendShortOrder(Parameters& params, std::string direction, double quantity, double price, std::string pair)
+std::string Cexio::sendShortOrder(Parameters& params, std::string direction, double quantity, double price, std::string pair)
 {
   //return sendOrder(params, direction, quantity, price);
 
@@ -171,7 +171,7 @@ std::string sendShortOrder(Parameters& params, std::string direction, double qua
 }
 
 
-std::string openPosition(Parameters& params, std::string direction, double quantity, double price, std::string pair)
+std::string Cexio::openPosition(Parameters& params, std::string direction, double quantity, double price, std::string pair)
 {
 
   std::string matchingPair = getMatchingPair(pair);
@@ -183,7 +183,7 @@ std::string openPosition(Parameters& params, std::string direction, double quant
   if (tickerPair.compare("") == 0) {
     *params.logFile << "<Cexio> Pair not supported" << std::endl;
     return "0";
-  }  
+  }
 
    using namespace std;
   //  string pair = matchingPair;
@@ -193,7 +193,7 @@ std::string openPosition(Parameters& params, std::string direction, double quant
    ostringstream oss;
    string ptype = "";
    double stopLossPrice = price ;
-   
+
    if(direction.compare("sell") == 0)
    {
       ptype = "short";
@@ -224,7 +224,7 @@ std::string openPosition(Parameters& params, std::string direction, double quant
         // orderId = "0";
         exit(0);
     }else{
-        
+
         oss1 << json_number_value(json_object_get(json_object_get(root.get(),"data"),"id"));
         orderId = oss1.str();
 
@@ -237,14 +237,14 @@ std::string openPosition(Parameters& params, std::string direction, double quant
     return orderId;
 }
 
-std::string closePosition(Parameters& params, std::string pair)
+std::string Cexio::closePosition(Parameters& params, std::string pair)
 {
 
     std::string tickerPair = getTickerPair(pair);
     if (tickerPair.compare("") == 0) {
       *params.logFile << "<Cexio> Pair not supported" << std::endl;
       return "0";
-    }  
+    }
 
 
      if(g_strOpenId  == "0")  return "0";
@@ -255,7 +255,7 @@ std::string closePosition(Parameters& params, std::string pair)
      ostringstream oss;
      oss << "id=" << tmpId;
      string options = oss.str();
-     
+
      unique_json root {authRequest(params,"/close_position/"+tickerPair,options)};
      auto error = json_string_value(json_object_get(root.get(),"error"));
 
@@ -265,10 +265,10 @@ std::string closePosition(Parameters& params, std::string pair)
            orderId ="0";
 
      }else{
-       
+
          oss1 << json_number_value(json_object_get(json_object_get(root.get(),"data"),"id"));
          orderId = oss1.str();
-       
+
      }
 
      return orderId;
@@ -281,12 +281,12 @@ std::string closePosition(Parameters& params, std::string pair)
  size_t arraySize = json_array_size(json_object_get(root.get(),"data"));
  auto data = json_object_get(root.get(),"data");
  for(size_t i=0; i< arraySize;i++){
- 
+
      std::string tmpId = json_string_value(json_object_get(json_array_get(data,i),"id"));
      ostringstream oss;
      oss << "id=" << tmpId;
      string options = oss.str();
-     
+
      unique_json root1 {authRequest(params,"close_position/BTC/USD/",options)};
      auto error = json_string_value(json_object_get(root1.get(),"error"));
      if(error){
@@ -295,11 +295,11 @@ std::string closePosition(Parameters& params, std::string pair)
      }else{
 
          orderId = json_string_value(json_object_get(root1.get(),"id"));
-       
+
      }
 
  }
- 
+
 
 return orderId;
 */
@@ -308,7 +308,7 @@ return orderId;
 
 
 
-std::string sendOrder(Parameters& params, std::string direction, double quantity, double price, std::string pair)
+std::string Cexio::sendOrder(Parameters& params, std::string direction, double quantity, double price, std::string pair)
 {
   std::string matchingPair = getMatchingPair(pair);
   if (matchingPair.compare("") == 0) {
@@ -319,7 +319,7 @@ std::string sendOrder(Parameters& params, std::string direction, double quantity
   if (tickerPair.compare("") == 0) {
     *params.logFile << "<Cexio> Pair not supported" << std::endl;
     return "0";
-  }  
+  }
 
   using namespace std;
   // string pair = matchingPair;
@@ -344,7 +344,7 @@ std::string sendOrder(Parameters& params, std::string direction, double quantity
   return orderId;
 }
 
-bool isOrderComplete(Parameters& params, std::string orderId)
+bool Cexio::isOrderComplete(Parameters& params, std::string orderId)
 {
 
 
@@ -360,16 +360,16 @@ bool isOrderComplete(Parameters& params, std::string orderId)
  if(g_bShort)
  {
    unique_json root { authRequest(params, "/get_position/", options) };
-  
+
    string status = json_string_value(json_object_get(json_object_get(root.get(),"data"), "status"));
   if (status.compare("a") == 0) {
     return true;
-  } else { 
+  } else {
    // auto dump = json_dumps(root.get(), 0);
    // *params.logFile << "<Cexio> Position Order Not Complete: " << dump << ")\n" << endl;
    // free(dump);
     // cout << "REMAINS:" << remains << endl;
-    return false; 
+    return false;
   }
 
  }else{
@@ -378,27 +378,31 @@ bool isOrderComplete(Parameters& params, std::string orderId)
   auto remains = atof(json_string_value(json_object_get(root.get(), "remains")));
   if (remains==0){
     return true;
-  } else { 
+  } else {
     auto dump = json_dumps(root.get(), 0);
     *params.logFile << "<Cexio> Order Not Complete: " << dump << ")\n" << endl;
     free(dump);
     // cout << "REMAINS:" << remains << endl;
-    return false; 
+    return false;
   }
 
  }
-  
+
 }
 
-double getActivePos(Parameters& params, std::string currency) { return getAvail(params, currency); }
+//TODO: inline header
+double Cexio::getActivePos(Parameters& params, std::string currency)
+{
+  return getAvail(params, currency);
+}
 
-double getLimitPrice(Parameters &params, double volume, bool isBid, std::string pair)
+double Cexio::getLimitPrice(Parameters &params, double volume, bool isBid, std::string pair)
 {
   std::string tickerPair = getTickerPair(pair);
   if (tickerPair.compare("") == 0) {
     *params.logFile << "<Cexio> Pair not supported" << std::endl;
     // return "0";
-  }  
+  }
 
   auto &exchange = queryHandle(params);
   auto root = unique_json(exchange.getRequest("/order_book/"+tickerPair));
@@ -424,7 +428,7 @@ double getLimitPrice(Parameters &params, double volume, bool isBid, std::string 
   return currPrice;
 }
 
-json_t* authRequest(Parameters &params, std::string request, std::string options)
+json_t* Cexio::authRequest(Parameters &params, std::string request, std::string options)
 {
   using namespace std;
   static uint64_t nonce = time(nullptr) * 4;
@@ -437,7 +441,7 @@ json_t* authRequest(Parameters &params, std::string request, std::string options
   string postParams = "key=" + params.cexioApi +
                            "&signature=" + hex_str<upperhex>(digest, digest + SHA256_DIGEST_LENGTH) +
                            "&nonce=" + to_string(nonce);
-  
+
   if (!options.empty())
   {
     postParams += "&";
@@ -448,7 +452,8 @@ json_t* authRequest(Parameters &params, std::string request, std::string options
   return checkResponse(*params.logFile, exchange.postRequest(request, postParams));
 }
 
-void testCexio() {
+void Cexio::testCexio()
+{
   using namespace std;
   Parameters params("blackbird.conf");
   params.logFile = new ofstream("./test.log" , ofstream::trunc);
@@ -504,4 +509,4 @@ void testCexio() {
   /*********************************************************/
   }
 
-}
+} //namespace NSExchange
