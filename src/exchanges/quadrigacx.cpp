@@ -12,22 +12,19 @@
 #include <array>
 #include <chrono>
 
-namespace QuadrigaCX {
+namespace NSExchange
+{
 
-//forward declarations
-static std::string getSignature(Parameters& params, const uint64_t nonce);
-static json_t* authRequest(Parameters& params, std::string request, json_t * options = nullptr);
-
-static RestApi& queryHandle(Parameters &params)
+RestApi& QuadrigaCX::queryHandle(Parameters &params)
 {
   static RestApi query ("https://api.quadrigacx.com",
                         params.cacert.c_str(), *params.logFile);
   return query;
 }
 
-quote_t getQuote(Parameters &params, std::string pair)
+quote_t QuadrigaCX::getQuote(Parameters &params, std::string pair)
 {
-  auto &exchange = queryHandle(params); 
+  auto &exchange = queryHandle(params);
   auto root = unique_json(exchange.getRequest("/v2/ticker?book=btc_usd"));
 
   auto quote = json_string_value(json_object_get(root.get(), "bid"));
@@ -40,7 +37,7 @@ quote_t getQuote(Parameters &params, std::string pair)
 }
 
 
-double getAvail(Parameters& params, std::string currency)
+double QuadrigaCX::getAvail(Parameters& params, std::string currency)
 {
   unique_json root { authRequest(params, "/v2/balance") };
 
@@ -63,7 +60,7 @@ double getAvail(Parameters& params, std::string currency)
 }
 
 
-std::string sendLongOrder(Parameters& params, std::string direction, double quantity, double price, std::string pair)
+std::string QuadrigaCX::sendLongOrder(Parameters& params, std::string direction, double quantity, double price, std::string pair)
 {
   if (direction.compare("buy") != 0 && direction.compare("sell") != 0) {
     *params.logFile  << "<QuadrigaCX> Error: Neither \"buy\" nor \"sell\" selected" << std::endl;
@@ -72,10 +69,10 @@ std::string sendLongOrder(Parameters& params, std::string direction, double quan
   *params.logFile << "<QuadrigaCX> Trying to send a \"" << direction << "\" limit order: "
                   << std::setprecision(8) << quantity << "@$"
                   << std::setprecision(2) << price << "...\n";
-  
+
   std::ostringstream oss;
   // Quadriga don't accept amount longer that 8 digits after decimal point
-  // Its a workaround, would be better to trim only digits after decimal point. 
+  // Its a workaround, would be better to trim only digits after decimal point.
   oss << std::fixed << std::setprecision(8) << quantity;
   std::string amount = oss.str();
 
@@ -95,18 +92,22 @@ std::string sendLongOrder(Parameters& params, std::string direction, double quan
   else {
     *params.logFile << "<QuadrigaCX> Done, order ID: " << orderId << std::endl;
     return orderId;
-  } 
+  }
 }
 
+std::string QuadrigaCX::sendShortOrder(Parameters &params, std::string direction, double quantity, double price, std::string pair)
+{
+  return "0";
+}
 
-bool isOrderComplete(Parameters& params, std::string orderId) 
+bool QuadrigaCX::isOrderComplete(Parameters& params, std::string orderId)
 {
   auto ret = false;
   unique_json options {json_object()};
   json_object_set_new(options.get(), "id", json_string(orderId.c_str()));
 
   unique_json root { authRequest(params, "/v2/lookup_order", options.get()) };
-  
+
   auto res = json_object_get(json_array_get(root.get(),0), "status");
   if( json_is_string(res) ){
     auto value = std::string(json_string_value(res));
@@ -116,21 +117,20 @@ bool isOrderComplete(Parameters& params, std::string orderId)
   }
   else{
     auto dump = json_dumps(root.get(), 0);
-    *params.logFile << "<QuadrigaCX> Error: failed to get order status for id: " << orderId 
+    *params.logFile << "<QuadrigaCX> Error: failed to get order status for id: " << orderId
     << ":" << dump << std::endl;
     free(dump);
   }
-
   return ret;
-   
 }
 
-double getActivePos(Parameters& params, std::string currency) {
+double QuadrigaCX::getActivePos(Parameters& params, std::string currency)
+{
   return getAvail(params, "btc");
 }
 
 
-double getLimitPrice(Parameters &params, double volume, bool isBid, std::string pair)
+double QuadrigaCX::getLimitPrice(Parameters &params, double volume, bool isBid, std::string pair)
 {
   auto &exchange = queryHandle(params);
   auto root = unique_json(exchange.getRequest("/v2/order_book?book=btc_usd"));
@@ -157,7 +157,7 @@ double getLimitPrice(Parameters &params, double volume, bool isBid, std::string 
 }
 
 
-static json_t* authRequest(Parameters& params, std::string request, json_t * options)
+json_t* QuadrigaCX::authRequest(Parameters& params, std::string request, json_t * options)
 {
   json_int_t nonce = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
 
@@ -182,7 +182,7 @@ static json_t* authRequest(Parameters& params, std::string request, json_t * opt
   std::string post_data(payload_string);
   free(payload_string);
 
-  std::string headers[1] = { 
+  std::string headers[1] = {
       "Content-Type: application/json; charset=utf-8",
   };
 
@@ -194,7 +194,7 @@ static json_t* authRequest(Parameters& params, std::string request, json_t * opt
   return ret;
 }
 
-static std::string getSignature(Parameters& params, const uint64_t nonce)
+std::string QuadrigaCX::getSignature(Parameters& params, const uint64_t nonce)
 {
   std::string sig_data_str = std::to_string(nonce) + params.quadrigaClientId + params.quadrigaApi;
   auto data_len = sig_data_str.length();
@@ -212,7 +212,8 @@ static std::string getSignature(Parameters& params, const uint64_t nonce)
   return hex_str(hmac_digest, hmac_digest + SHA256_DIGEST_LENGTH);
 }
 
-void testQuadriga(){
+void QuadrigaCX::testQuadriga()
+{
 
     Parameters params("blackbird.conf");
     params.quadrigaSecret = "";
@@ -243,4 +244,4 @@ void testQuadriga(){
 
 }
 
-}
+} //namespace NSExchange
