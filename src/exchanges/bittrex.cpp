@@ -1,11 +1,3 @@
-#include "bittrex.h"
-#include "parameters.h"
-#include "utils/restapi.h"
-#include "unique_json.hpp"
-#include "hex_str.hpp"
-
-#include "openssl/sha.h"
-#include "openssl/hmac.h"
 #include <array>
 #include <algorithm>
 #include <ctime>
@@ -13,16 +5,23 @@
 #include <iomanip>
 #include <sstream>
 
-namespace Bittrex {
-static json_t* authRequest(Parameters &, std::string, std::string);
-static RestApi& queryHandle(Parameters &params)
+#include "openssl/sha.h"
+#include "openssl/hmac.h"
+
+#include "bittrex.h"
+#include "parameters.h"
+#include "hex_str.hpp"
+
+namespace NSExchange {
+
+RestApi& Bittrex::queryHandle(Parameters &params)
 {
   static RestApi query ("https://bittrex.com",
                         params.cacert.c_str(), *params.logFile);
   return query;
 }
 
-static json_t* checkResponse(std::ostream &logFile, json_t *root)
+json_t* Bittrex::checkResponse(std::ostream &logFile, json_t *root)
 {
   auto errmsg = json_object_get(root, "error");
   if (errmsg)
@@ -32,7 +31,7 @@ static json_t* checkResponse(std::ostream &logFile, json_t *root)
   return root;
 }
 
-quote_t getQuote(Parameters &params, std::string pair)
+quote_t Bittrex::getQuote(Parameters &params, std::string pair)
 {
   auto &exchange = queryHandle(params);
   std::string x;
@@ -42,7 +41,7 @@ quote_t getQuote(Parameters &params, std::string pair)
   //params.leg2.c_str();
 
   unique_json root {exchange.getRequest(x)};
-  
+
   double quote = json_number_value(json_object_get(json_object_get(root.get(), "result"), "Bid"));
   auto bidValue = quote ? quote : 0.0;
 
@@ -52,7 +51,7 @@ quote_t getQuote(Parameters &params, std::string pair)
   return std::make_pair(bidValue, askValue);
 }
 
-double getAvail(Parameters &params, std::string currency)
+double Bittrex::getAvail(Parameters &params, std::string currency)
 {
   std::string cur_str;
   cur_str += "currency=";
@@ -67,8 +66,10 @@ double getAvail(Parameters &params, std::string currency)
   double available = json_number_value(json_object_get(json_object_get(root.get(), "result"),"Available"));
   return available;
 }
+
 // this function name is misleading it is not a "long" order but a non margin order.
-std::string sendLongOrder(Parameters& params, std::string direction, double quantity, double price, std::string pair) {
+std::string Bittrex::sendLongOrder(Parameters& params, std::string direction, double quantity, double price, std::string pair)
+{
   if (direction.compare("buy") != 0 && direction.compare("sell") != 0) {
     *params.logFile  << "<Bittrex> Error: Neither \"buy\" nor \"sell\" selected" << std::endl;
     return "0";
@@ -76,8 +77,8 @@ std::string sendLongOrder(Parameters& params, std::string direction, double quan
   *params.logFile << "<Bittrex> Trying to send a \"" << direction << "\" limit order: "
                   << std::setprecision(8) << quantity << " @ $"
                   << std::setprecision(8) << price << "...\n";
-  
-  //TODO implement matchingpair 
+
+  //TODO implement matchingpair
   // std::string pair = "USDT-BTC";
 
   std::string type = direction;
@@ -92,8 +93,10 @@ std::string sendLongOrder(Parameters& params, std::string direction, double quan
   *params.logFile << "<Bittrex> Done (transaction ID: " << txid << ")\n" << std::endl;
   return txid;
 }
+
 //SUGGEST: probably not necessary
-std::string sendShortOrder(Parameters& params, std::string direction, double quantity, double price, std::string pair) {
+std::string Bittrex::sendShortOrder(Parameters& params, std::string direction, double quantity, double price, std::string pair)
+{
   if (direction.compare("buy") != 0 && direction.compare("sell") != 0) {
     *params.logFile  << "<Bittrex> Error: Neither \"buy\" nor \"sell\" selected" << std::endl;
     return "0";
@@ -114,7 +117,7 @@ std::string sendShortOrder(Parameters& params, std::string direction, double qua
   return txid;
 }
 //This is not used at the moment, but could pull out send long/short order. Leaving as is for now
-std::string sendOrder(Parameters& params, std::string direction, double quantity, double price)
+std::string Bittrex::sendOrder(Parameters& params, std::string direction, double quantity, double price)
 {
   *params.logFile << "<Bittrex> Trying to send a \"" << direction << "\" limit order: "
                   << std::setprecision(6) << quantity << "@$"
@@ -129,7 +132,7 @@ std::string sendOrder(Parameters& params, std::string direction, double quantity
   return orderId;
 }
 
-bool isOrderComplete(Parameters& params, std::string orderId)
+bool Bittrex::isOrderComplete(Parameters& params, std::string orderId)
 {
   //TODO Build a real currency string for options here (or outside?)
   unique_json root { authRequest(params, "/api/v1.1/market/getopenorders","market=USDT-BTC")};
@@ -152,14 +155,16 @@ bool isOrderComplete(Parameters& params, std::string orderId)
   if (isOrderStillOpen){
     *params.logFile << "<Bittrex> Order " << orderId << " does not exist" << std::endl;
   }
-  return isOrderStillOpen;  
+  return isOrderStillOpen;
 }
 
-double getActivePos(Parameters& params, std::string currency) {
+double Bittrex::getActivePos(Parameters& params, std::string currency)
+{
     return getAvail(params, "BTC");
 }
 
-double getLimitPrice(Parameters& params, double volume, bool isBid, std::string pair) {
+double Bittrex::getLimitPrice(Parameters& params, double volume, bool isBid, std::string pair)
+{
   // takes a quantity we want and if its a bid or not
   auto &exchange  = queryHandle(params);
   //TODO build a real URI string here
@@ -187,11 +192,11 @@ double getLimitPrice(Parameters& params, double volume, bool isBid, std::string 
 }
 
 // build auth request - needs to append apikey, nonce, and calculate HMAC 512 hash and include it under api sign header
-json_t* authRequest(Parameters &params, std::string request, std:: string options)
+json_t* Bittrex::authRequest(Parameters &params, std::string request, std:: string options)
 {
   //TODO: create nonce NOT respected right now so not calculating but could be added with  std::to_string(++nonce)
   //static uint64_t nonce = time(nullptr) * 4;
-  // this message is the full uri for sig signing. 
+  // this message is the full uri for sig signing.
   auto msg = "https://bittrex.com" + request +"?apikey=" + params.bittrexApi.c_str() +"&nonce=0";
   //append options to full uri and partial URI
   std::string uri = request + "?apikey=" + params.bittrexApi + "&nonce=0";
@@ -201,18 +206,18 @@ json_t* authRequest(Parameters &params, std::string request, std:: string option
     uri += "&";
     uri += options;
   }
-  // SHA512 of URI and API SECRET 
+  // SHA512 of URI and API SECRET
   // this function grabs the HMAC hash (using sha512) of the secret and the full URI
   uint8_t *hmac_digest = HMAC(EVP_sha512(),
                               params.bittrexSecret.c_str(), params.bittrexSecret.size(),
-                              reinterpret_cast<const uint8_t *>(msg.data()),msg.size(), 
+                              reinterpret_cast<const uint8_t *>(msg.data()),msg.size(),
                               NULL, NULL);
   // creates a hex string of the hmac hash
   std::string api_sign_header = hex_str(hmac_digest, hmac_digest + SHA512_DIGEST_LENGTH);
   // create a base for appending the initial request domain
   std::string postParams = "?apikey=" + params.bittrexApi +
                            "&nonce=0";
-  //once again append the extra options 
+  //once again append the extra options
   if (!options.empty())
   {
     postParams += "&";
@@ -230,8 +235,8 @@ json_t* authRequest(Parameters &params, std::string request, std:: string option
 
 
 
-void testBittrex(){
-
+void Bittrex::testBittrex()
+{
     Parameters params("blackbird.conf");
     params.logFile = new std::ofstream("./test.log" , std::ofstream::trunc);
 
@@ -251,7 +256,7 @@ void testBittrex(){
     ///// if you don't wait bittrex won't recognize order for iscomplete
     //sleep(5);
     //std::cout << "Buy Order is complete: " << isOrderComplete(params, orderId) << std::endl;
-  
+
     // TODO: Test sell orders, really should work though.
     //std::cout << orderId << std::endl;
     //std::cout << "Buy order is complete: " << isOrderComplete(params, orderId) << std::endl;
@@ -261,4 +266,4 @@ void testBittrex(){
     //std::cout << "Sell order is complete: " << isOrderComplete(params, orderId) << std::endl;
     //std::cout << "Active Position: " << getActivePos(params, orderId);
 }
-}
+} //namespace NSExchange
