@@ -12,18 +12,17 @@
 #include <cctype>
 #include <iomanip>
 
-namespace Poloniex {
+namespace NSExchange
+{
 
-static json_t* authRequest(Parameters &, const char *, const std::string & = "");
-
-static RestApi& queryHandle(Parameters &params)
+RestApi& Poloniex::queryHandle(Parameters &params)
 {
   static RestApi query ("https://poloniex.com",
                         params.cacert.c_str(), *params.logFile);
   return query;
 }
 
-static json_t* checkResponse(std::ostream &logFile, json_t *root)
+json_t* Poloniex::checkResponse(std::ostream &logFile, json_t *root)
 {
   auto errmsg = json_object_get(root, "error");
   if (errmsg)
@@ -36,7 +35,7 @@ static json_t* checkResponse(std::ostream &logFile, json_t *root)
 
 // We use ETH/BTC as there is no USD on Poloniex
 // TODO We could show BTC/USDT
-quote_t getQuote(Parameters &params, std::string pair)
+quote_t Poloniex::getQuote(Parameters &params, std::string pair)
 {
   auto &exchange = queryHandle(params);
   unique_json root { exchange.getRequest("/public?command=returnTicker") };
@@ -50,7 +49,7 @@ quote_t getQuote(Parameters &params, std::string pair)
   return std::make_pair(bidValue, askValue);
 }
 
-double getAvail(Parameters &params, std::string currency)
+double Poloniex::getAvail(Parameters &params, std::string currency)
 {
   std::transform(begin(currency), end(currency), begin(currency), ::toupper);
   std::string options = "account=exchange";
@@ -62,7 +61,8 @@ double getAvail(Parameters &params, std::string currency)
   return funds ? std::stod(funds) : 0.0;
 }
 
-std::string sendLongOrder(Parameters& params, std::string direction, double quantity, double price, std::string pair) {
+std::string Poloniex::sendLongOrder(Parameters& params, std::string direction, double quantity, double price, std::string pair)
+{
   if (direction.compare("buy") != 0 && direction.compare("sell") != 0) {
     *params.logFile  << "<Poloniex> Error: Neither \"buy\" nor \"sell\" selected" << std::endl;
     return "0";
@@ -71,18 +71,19 @@ std::string sendLongOrder(Parameters& params, std::string direction, double quan
   std::string options = "currencyPair=USDT_BTC&rate=";
   std::string volume = std::to_string(quantity);
   std::string pricelimit = std::to_string(price);
-  options += pricelimit + "&amount=" + volume; 
+  options += pricelimit + "&amount=" + volume;
   unique_json root { authRequest(params, direction.c_str(), options) };
   std::string txid = json_string_value(json_object_get(root.get(),"orderNumber"));
   return txid;
 }
 
-std::string sendShortOrder(Parameters& params, std::string direction, double quantity, double price, std::string pair) {
+std::string Poloniex::sendShortOrder(Parameters& params, std::string direction, double quantity, double price, std::string pair)
+{
   // TODO
   return "0";
 }
 
-bool isOrderComplete(Parameters& params, std::string orderId)
+bool Poloniex::isOrderComplete(Parameters& params, std::string orderId)
 {
   unique_json root { authRequest(params, "returnOpenOrders", "currencyPair=USDT_BTC") };
   auto n = json_array_size(root.get());
@@ -95,7 +96,8 @@ bool isOrderComplete(Parameters& params, std::string orderId)
   return true;
 }
 
-double getActivePos(Parameters& params, std::string currency) {
+double Poloniex::getActivePos(Parameters& params, std::string currency)
+{
   // TODO: When we add the new getActivePos style uncomment this
   // double activeSize = 0.0;
   // if (!orderId.empty()){
@@ -118,7 +120,8 @@ double getActivePos(Parameters& params, std::string currency) {
   return getAvail(params, "BTC");
 }
 
-double getLimitPrice(Parameters& params, double volume, bool isBid, std::string pair) {
+double Poloniex::getLimitPrice(Parameters& params, double volume, bool isBid, std::string pair)
+{
   auto &exchange = queryHandle(params);
   // TODO: build real curr string
   //std::string uri = "/public?command=returnOrderBook&currencyPair=";
@@ -143,7 +146,7 @@ double getLimitPrice(Parameters& params, double volume, bool isBid, std::string 
   return p;
 }
 
-json_t* authRequest(Parameters &params, const char *request, const std::string &options)
+json_t* Poloniex::authRequest(Parameters &params, const char *request, const std::string &options)
 {
   using namespace std;
   static uint64_t nonce = time(nullptr) * 4;
@@ -170,5 +173,5 @@ json_t* authRequest(Parameters &params, const char *request, const std::string &
                                               make_slist(begin(headers), end(headers)),
                                               post_body));
 }
-  
-}
+
+} //namespace NEExchange

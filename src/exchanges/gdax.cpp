@@ -11,17 +11,17 @@
 #include <ctime>
 #include <cmath>
 
-namespace GDAX
+namespace NSExchange
 {
 
-static RestApi &queryHandle(Parameters &params)
+RestApi& GDAX::queryHandle(Parameters &params)
 {
   static RestApi query("https://api.gdax.com",
                        params.cacert.c_str(), *params.logFile);
   return query;
 }
 
-quote_t getQuote(Parameters &params, std::string pair)
+quote_t GDAX::getQuote(Parameters &params, std::string pair)
 {
   auto &exchange = queryHandle(params);
   std::string req;
@@ -42,7 +42,7 @@ quote_t getQuote(Parameters &params, std::string pair)
   return std::make_pair(std::stod(bid), std::stod(ask));
 }
 
-double getAvail(Parameters &params, std::string currency)
+double GDAX::getAvail(Parameters &params, std::string currency)
 {
   unique_json root{authRequest(params, "GET", "/accounts", "")};
   size_t arraySize = json_array_size(root.get());
@@ -68,13 +68,13 @@ double getAvail(Parameters &params, std::string currency)
   return available;
 }
 
-double getActivePos(Parameters &params, std::string pair)
+double GDAX::getActivePos(Parameters &params, std::string pair)
 {
   // TODO: this is not really a good way to get active positions
   return getAvail(params, "BTC");
 }
 
-double getLimitPrice(Parameters &params, double volume, bool isBid, std::string pair)
+double GDAX::getLimitPrice(Parameters &params, double volume, bool isBid, std::string pair)
 {
   auto &exchange = queryHandle(params);
   // TODO: Build a real URL with leg1 leg2 and auth post it
@@ -100,7 +100,7 @@ double getLimitPrice(Parameters &params, double volume, bool isBid, std::string 
   return p;
 }
 
-std::string sendLongOrder(Parameters &params, std::string direction, double quantity, double price, std::string pair)
+std::string GDAX::sendLongOrder(Parameters &params, std::string direction, double quantity, double price, std::string pair)
 {
   if (direction.compare("buy") != 0 && direction.compare("sell") != 0)
   {
@@ -122,7 +122,13 @@ std::string sendLongOrder(Parameters &params, std::string direction, double quan
   return txid;
 }
 
-bool isOrderComplete(Parameters &params, std::string orderId)
+std::string GDAX::sendShortOrder(Parameters &params, std::string direction, double quantity, double price, std::string pair)
+{
+  //TODO
+  return "0";
+}
+
+bool GDAX::isOrderComplete(Parameters &params, std::string orderId)
 {
 
   unique_json root{authRequest(params, "GET", "/orders", "")};
@@ -142,7 +148,7 @@ bool isOrderComplete(Parameters &params, std::string orderId)
   return complete;
 }
 
-json_t *authRequest(Parameters &params, std::string method, std::string request, const std::string &options)
+json_t* GDAX::authRequest(Parameters &params, std::string method, std::string request, const std::string &options)
 {
   // create timestamp
 
@@ -196,9 +202,9 @@ json_t *authRequest(Parameters &params, std::string method, std::string request,
     exit(0);
   }
 }
-std::string gettime()
-{
 
+std::string GDAX::gettime()
+{
   timeval curTime;
   gettimeofday(&curTime, NULL);
   int milli = curTime.tv_usec / 1000;
@@ -219,7 +225,8 @@ std::string gettime()
   snprintf(buff5, 40, "%lld.%d000", result2, milli);
   return buff5;
 }
-void testGDAX()
+
+void GDAX::testGDAX()
 {
 
   Parameters params("bird.conf");
@@ -246,4 +253,5 @@ void testGDAX()
   //std::cout << "Sell order is complete: " << isOrderComplete(params, orderId) << std::endl;
   //std::cout << "Active Position: " << getActivePos(params);
 }
-}
+
+} //namespace NSExchange

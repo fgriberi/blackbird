@@ -14,21 +14,21 @@
 #include <iomanip>
 #include <ctime>
 
-namespace Gemini {
+namespace NSExchange {
 
-static RestApi& queryHandle(Parameters &params)
+RestApi& Gemini::queryHandle(Parameters &params)
 {
   static RestApi query ("https://api.gemini.com",
                         params.cacert.c_str(), *params.logFile);
   return query;
 }
 
-quote_t getQuote(Parameters &params, std::string pair)
+quote_t Gemini::getQuote(Parameters &params, std::string pair)
 {
   auto &exchange = queryHandle(params);
   std::string url;
   url = "/v1/book/BTCUSD";
-  
+
   unique_json root { exchange.getRequest(url) };
   const char *quote = json_string_value(json_object_get(json_array_get(json_object_get(root.get(), "bids"), 0), "price"));
   auto bidValue = quote ? std::stod(quote) : 0.0;
@@ -39,7 +39,8 @@ quote_t getQuote(Parameters &params, std::string pair)
   return std::make_pair(bidValue, askValue);
 }
 
-double getAvail(Parameters& params, std::string currency) {
+double Gemini::getAvail(Parameters& params, std::string currency)
+{
   unique_json root { authRequest(params, "https://api.gemini.com/v1/balances", "balances", "") };
   while (json_object_get(root.get(), "message") != NULL) {
     std::this_thread::sleep_for(std::chrono::seconds(1));
@@ -74,7 +75,8 @@ double getAvail(Parameters& params, std::string currency) {
   return availability;
 }
 
-std::string sendLongOrder(Parameters& params, std::string direction, double quantity, double price, std::string pair) {
+std::string Gemini::sendLongOrder(Parameters& params, std::string direction, double quantity, double price, std::string pair)
+{
   *params.logFile << "<Gemini> Trying to send a \"" << direction << "\" limit order: "
                   << std::setprecision(6) << quantity << "@$"
                   << std::setprecision(2) << price << "...\n";
@@ -87,7 +89,14 @@ std::string sendLongOrder(Parameters& params, std::string direction, double quan
   return orderId;
 }
 
-bool isOrderComplete(Parameters& params, std::string orderId) {
+std::string Gemini::sendShortOrder(Parameters &params, std::string direction, double quantity, double price, std::string pair)
+{
+  //TODO
+  return "0";
+}
+
+bool Gemini::isOrderComplete(Parameters& params, std::string orderId)
+{
   if (orderId == "0") return true;
 
   auto options = "\"order_id\":" + orderId;
@@ -95,16 +104,17 @@ bool isOrderComplete(Parameters& params, std::string orderId) {
   return json_is_false(json_object_get(root.get(), "is_live"));
 }
 
-double getActivePos(Parameters& params, std::string currency) {
+double Gemini::getActivePos(Parameters& params, std::string currency)
+{
   return getAvail(params, "btc");
 }
 
-double getLimitPrice(Parameters& params, double volume, bool isBid, std::string pair)
+double Gemini::getLimitPrice(Parameters& params, double volume, bool isBid, std::string pair)
 {
   auto &exchange = queryHandle(params);
   unique_json root { exchange.getRequest("/v1/book/btcusd") };
   auto bidask = json_object_get(root.get(), isBid ? "bids" : "asks");
-  
+
   // loop on volume
   *params.logFile << "<Gemini> Looking for a limit price to fill "
                   << std::setprecision(6) << fabs(volume) << " BTC...\n";
@@ -126,7 +136,8 @@ double getLimitPrice(Parameters& params, double volume, bool isBid, std::string 
   return p;
 }
 
-json_t* authRequest(Parameters& params, std::string url, std::string request, std::string options) {
+json_t* Gemini::authRequest(Parameters& params, std::string url, std::string request, std::string options)
+{
   static uint64_t nonce = time(nullptr) * 4;
   ++nonce;
   // check if options parameter is empty
@@ -205,4 +216,4 @@ json_t* authRequest(Parameters& params, std::string url, std::string request, st
   }
 }
 
-}
+} //namespace NSExchange

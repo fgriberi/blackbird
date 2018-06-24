@@ -1,11 +1,3 @@
-#include "wex.h"
-#include "parameters.h"
-#include "utils/restapi.h"
-#include "unique_json.hpp"
-#include "hex_str.hpp"
-
-#include "openssl/sha.h"
-#include "openssl/hmac.h"
 #include <array>
 #include <sstream>
 #include <iomanip>
@@ -13,19 +5,27 @@
 #include <cmath>    // fabs
 #include <cassert>
 
-namespace WEX {
+#include "openssl/sha.h"
+#include "openssl/hmac.h"
 
-static json_t* authRequest(Parameters &, const char *, const std::string & = "");
-static json_t* adjustResponse(json_t *);
+#include "wex.h"
+#include "parameters.h"
+#include "utils/restapi.h"
+#include "unique_json.hpp"
+#include "hex_str.hpp"
 
-static RestApi& queryHandle(Parameters &params)
+
+namespace NSExchange
+{
+
+RestApi& WEX::queryHandle(Parameters &params)
 {
   static RestApi query ("https://wex.nz",
                         params.cacert.c_str(), *params.logFile);
   return query;
 }
 
-static json_t* checkResponse(std::ostream &logFile, json_t *root)
+json_t* WEX::checkResponse(std::ostream &logFile, json_t *root)
 {
   unique_json own { root };
   auto success = json_object_get(root, "success");
@@ -41,7 +41,7 @@ static json_t* checkResponse(std::ostream &logFile, json_t *root)
   return result;
 }
 
-quote_t getQuote(Parameters& params, std::string pair)
+quote_t WEX::getQuote(Parameters& params, std::string pair)
 {
   auto &exchange = queryHandle(params);
   unique_json root { exchange.getRequest("/api/3/ticker/btc_usd") };
@@ -52,14 +52,14 @@ quote_t getQuote(Parameters& params, std::string pair)
   return std::make_pair(bidValue, askValue);
 }
 
-double getAvail(Parameters &params, std::string currency)
+double WEX::getAvail(Parameters &params, std::string currency)
 {
   unique_json root { authRequest(params, "getInfo") };
   auto funds = json_object_get(json_object_get(root.get(), "funds"), currency.c_str());
   return json_number_value(funds);
 }
 
-std::string sendLongOrder(Parameters &params, std::string direction, double quantity, double price, std::string pair)
+std::string WEX::sendLongOrder(Parameters &params, std::string direction, double quantity, double price, std::string pair)
 {
   *params.logFile << "<WEX> Trying to send a \"" << direction << "\" limit order: "
                   << std::fixed
@@ -79,7 +79,12 @@ std::string sendLongOrder(Parameters &params, std::string direction, double quan
   return std::to_string(orderid);
 }
 
-bool isOrderComplete(Parameters& params, std::string orderId)
+std::string WEX::sendShortOrder(Parameters &params, std::string direction, double quantity, double price, std::string pair)
+{
+  return "0";
+}
+
+bool WEX::isOrderComplete(Parameters& params, std::string orderId)
 {
   if (orderId == "0") return true;
   unique_json root { authRequest(params, "ActiveOrders", "pair=btc_usd") };
@@ -87,7 +92,7 @@ bool isOrderComplete(Parameters& params, std::string orderId)
   return json_object_get(root.get(), orderId.c_str()) == nullptr;
 }
 
-double getActivePos(Parameters& params, std::string currency)
+double WEX::getActivePos(Parameters& params, std::string currency)
 {
   // TODO:
   // this implementation is more of a placeholder copied from other exchanges;
@@ -95,7 +100,7 @@ double getActivePos(Parameters& params, std::string currency)
   return getAvail(params, "btc");
 }
 
-double getLimitPrice(Parameters& params, double volume, bool isBid, std::string pair)
+double WEX::getLimitPrice(Parameters& params, double volume, bool isBid, std::string pair)
 {
   auto &exchange = queryHandle(params);
   unique_json root { exchange.getRequest("/api/3/depth/btc_usd") };
@@ -121,7 +126,7 @@ double getLimitPrice(Parameters& params, double volume, bool isBid, std::string 
  * This function turns that error into an empty object for sake
  * of regularity.
  */
-json_t* adjustResponse(json_t *root)
+json_t* WEX::adjustResponse(json_t *root)
 {
   auto errmsg = json_object_get(root, "error");
   if (!errmsg) return root;
@@ -138,7 +143,7 @@ json_t* adjustResponse(json_t *root)
   return root;
 }
 
-json_t* authRequest(Parameters &params, const char *request, const std::string &options)
+json_t* WEX::authRequest(Parameters &params, const char *request, const std::string &options)
 {
   using namespace std;
   // WEX requires nonce to be [1, 2^32 - 1)
@@ -168,4 +173,4 @@ json_t* authRequest(Parameters &params, const char *request, const std::string &
   return checkResponse(*params.logFile, adjustResponse(result));
 }
 
-}
+} //namespace NSExchange

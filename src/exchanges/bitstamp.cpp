@@ -1,12 +1,3 @@
-#include "bitstamp.h"
-#include "parameters.h"
-#include "utils/restapi.h"
-#include "utils/base64.h"
-#include "unique_json.hpp"
-#include "hex_str.hpp"
-
-#include "openssl/sha.h"
-#include "openssl/hmac.h"
 #include <chrono>
 #include <thread>
 #include <cmath>
@@ -15,18 +6,25 @@
 #include <ctime>
 #include <iomanip>
 
-namespace Bitstamp {
+#include "bitstamp.h"
+#include "parameters.h"
+#include "utils/base64.h"
+#include "hex_str.hpp"
 
-static json_t* authRequest(Parameters &, std::string, std::string);
+#include "openssl/sha.h"
+#include "openssl/hmac.h"
 
-static RestApi& queryHandle(Parameters &params)
+namespace NSExchange
+{
+
+RestApi& Bitstamp::queryHandle(Parameters &params)
 {
   static RestApi query ("https://www.bitstamp.net",
                         params.cacert.c_str(), *params.logFile);
   return query;
 }
 
-static json_t* checkResponse(std::ostream &logFile, json_t *root)
+json_t* Bitstamp::checkResponse(std::ostream &logFile, json_t *root)
 {
   auto errstatus = json_object_get(root, "error");
   if (errstatus)
@@ -41,7 +39,8 @@ static json_t* checkResponse(std::ostream &logFile, json_t *root)
   return root;
 }
 
-std::string getMatchingPair(std::string pair) {
+std::string Bitstamp::getMatchingPair(std::string pair)
+{
   if (pair.compare("btcusd") == 0) {
     return "btcusd";
   } else if (pair.compare("ethusd") == 0) {
@@ -57,7 +56,7 @@ std::string getMatchingPair(std::string pair) {
   }
 }
 
-quote_t getQuote(Parameters& params, std::string pair)
+quote_t Bitstamp::getQuote(Parameters& params, std::string pair)
 {
   std::string matchingPair = getMatchingPair(pair);
   if (matchingPair.compare("") == 0) {
@@ -77,7 +76,7 @@ quote_t getQuote(Parameters& params, std::string pair)
   return std::make_pair(bidValue, askValue);
 }
 
-double getAvail(Parameters& params, std::string currency)
+double Bitstamp::getAvail(Parameters& params, std::string currency)
 {
   *params.logFile << "<Bitstamp> getAvail" << std::endl;
 
@@ -131,7 +130,7 @@ double getAvail(Parameters& params, std::string currency)
   return availability;
 }
 
-std::string sendLongOrder(Parameters& params, std::string direction, double quantity, double price, std::string pair)
+std::string Bitstamp::sendLongOrder(Parameters& params, std::string direction, double quantity, double price, std::string pair)
 {
   std::string matchingPair = getMatchingPair(pair);
   if (matchingPair.compare("") == 0) {
@@ -167,7 +166,13 @@ std::string sendLongOrder(Parameters& params, std::string direction, double quan
   return orderId;
 }
 
-bool isOrderComplete(Parameters& params, std::string orderId)
+// TODO: verifiy !!!
+std::string Bitstamp::sendShortOrder(Parameters &params, std::string direction, double quantity, double price, std::string pair)
+{
+  return "0";
+}
+
+bool Bitstamp::isOrderComplete(Parameters& params, std::string orderId)
 {
   if (orderId == "0") return true;
 
@@ -177,9 +182,12 @@ bool isOrderComplete(Parameters& params, std::string orderId)
   return status && status == std::string("Finished");
 }
 
-double getActivePos(Parameters& params, std::string currency) { return getAvail(params, currency); }
+double Bitstamp::getActivePos(Parameters& params, std::string currency)
+{
+    return getAvail(params, currency);
+}
 
-double getLimitPrice(Parameters& params, double volume, bool isBid, std::string pair)
+double Bitstamp::getLimitPrice(Parameters& params, double volume, bool isBid, std::string pair)
 {
   std::string matchingPair = getMatchingPair(pair);
   if (matchingPair.compare("") == 0) {
@@ -211,7 +219,7 @@ double getLimitPrice(Parameters& params, double volume, bool isBid, std::string 
   return p;
 }
 
-json_t* authRequest(Parameters &params, std::string request, std::string options)
+json_t* Bitstamp::authRequest(Parameters &params, std::string request, std::string options)
 {
   static uint64_t nonce = time(nullptr) * 4;
   auto msg = std::to_string(++nonce) + params.bitstampClientId + params.bitstampApi;
@@ -233,4 +241,4 @@ json_t* authRequest(Parameters &params, std::string request, std::string options
   return checkResponse(*params.logFile, exchange.postRequest(request, postParams));
 }
 
-}
+} //namespace NSExchange
