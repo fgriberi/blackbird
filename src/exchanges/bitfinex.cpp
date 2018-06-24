@@ -1,28 +1,27 @@
-#include "bitfinex.h"
-#include "parameters.h"
-#include "utils/restapi.h"
-#include "utils/base64.h"
-#include "hex_str.hpp"
-#include "unique_json.hpp"
-
-#include "openssl/sha.h"
-#include "openssl/hmac.h"
 #include <sstream>
 #include <iomanip>
 #include <array>
 #include <cmath>
 #include <ctime>
 
-namespace Bitfinex {
+#include "openssl/sha.h"
+#include "openssl/hmac.h"
 
-static RestApi& queryHandle(Parameters &params)
+#include "bitfinex.h"
+#include "parameters.h"
+#include "utils/base64.h"
+#include "hex_str.hpp"
+
+namespace NSExchange {
+
+RestApi& Bitfinex::queryHandle(Parameters &params)
 {
   static RestApi query ("https://api.bitfinex.com",
                         params.cacert.c_str(), *params.logFile);
   return query;
 }
 
-static json_t* checkResponse(std::ostream &logFile, json_t *root)
+json_t* Bitfinex::checkResponse(std::ostream &logFile, json_t *root)
 {
   auto msg = json_object_get(root, "message");
   if (!msg) msg = json_object_get(root, "error");
@@ -34,7 +33,8 @@ static json_t* checkResponse(std::ostream &logFile, json_t *root)
   return root;
 }
 
-std::string getMatchingPair(std::string pair) {
+std::string Bitfinex::getMatchingPair(std::string pair)
+{
   if (pair.compare("btcusd") == 0) {
     return "btcusd";
   } else if (pair.compare("ethusd") == 0) {
@@ -50,7 +50,7 @@ std::string getMatchingPair(std::string pair) {
   }
 }
 
-quote_t getQuote(Parameters &params, std::string pair)
+quote_t Bitfinex::getQuote(Parameters &params, std::string pair)
 {
   std::string matchingPair = getMatchingPair(pair);
   if (matchingPair.compare("") == 0) {
@@ -62,7 +62,7 @@ quote_t getQuote(Parameters &params, std::string pair)
 
   std::string url;
   url = "/v1/ticker/"+matchingPair;
-  
+
   unique_json root { exchange.getRequest(url) };
 
   const char *quote = json_string_value(json_object_get(root.get(), "bid"));
@@ -74,7 +74,7 @@ quote_t getQuote(Parameters &params, std::string pair)
   return std::make_pair(bidValue, askValue);
 }
 
-double getAvail(Parameters& params, std::string currency)
+double Bitfinex::getAvail(Parameters& params, std::string currency)
 {
   *params.logFile << "<Bitfinex> getAvail" << std::endl;
 
@@ -105,24 +105,24 @@ double getAvail(Parameters& params, std::string currency)
   return availability;
 }
 
-std::string sendLongOrder(Parameters& params, std::string direction, double quantity, double price, std::string pair)
+std::string Bitfinex::sendLongOrder(Parameters& params, std::string direction, double quantity, double price, std::string pair)
 {
   return sendOrder(params, direction, quantity, price, pair);
 }
 
-std::string sendShortOrder(Parameters& params, std::string direction, double quantity, double price, std::string pair)
+std::string Bitfinex::sendShortOrder(Parameters& params, std::string direction, double quantity, double price, std::string pair)
 {
   return sendOrder(params, direction, quantity, price, pair);
 }
 
-std::string sendOrder(Parameters& params, std::string direction, double quantity, double price, std::string pair)
+std::string Bitfinex::sendOrder(Parameters& params, std::string direction, double quantity, double price, std::string pair)
 {
   std::string matchingPair = getMatchingPair(pair);
   if (matchingPair.compare("") == 0) {
     *params.logFile << "<Bitfinex> Pair not supported" << std::endl;
     return "0";
   }
-  
+
   *params.logFile << "<Bitfinex> Trying to send a \"" << direction << "\" limit order: "
                   << std::setprecision(6) << quantity << "@$"
                   << std::setprecision(2) << price << "...\n";
@@ -135,7 +135,7 @@ std::string sendOrder(Parameters& params, std::string direction, double quantity
   return orderId;
 }
 
-bool isOrderComplete(Parameters& params, std::string orderId)
+bool Bitfinex::isOrderComplete(Parameters& params, std::string orderId)
 {
   if (orderId == "0") return true;
 
@@ -144,7 +144,7 @@ bool isOrderComplete(Parameters& params, std::string orderId)
   return json_is_false(json_object_get(root.get(), "is_live"));
 }
 
-double getActivePos(Parameters& params, std::string currency)
+double Bitfinex::getActivePos(Parameters& params, std::string currency)
 {
   unique_json root { authRequest(params, "/v1/positions", "") };
   double position;
@@ -161,7 +161,7 @@ double getActivePos(Parameters& params, std::string currency)
   return position;
 }
 
-double getLimitPrice(Parameters& params, double volume, bool isBid, std::string pair)
+double Bitfinex::getLimitPrice(Parameters& params, double volume, bool isBid, std::string pair)
 {
 
   std::string matchingPair = getMatchingPair(pair);
@@ -169,7 +169,7 @@ double getLimitPrice(Parameters& params, double volume, bool isBid, std::string 
     *params.logFile << "<Bitfinex> Pair not supported" << std::endl;
     // return "0";
   }
-  
+
   auto &exchange  = queryHandle(params);
   unique_json root { exchange.getRequest("/v1/book/"+matchingPair) };
   json_t *bidask  = json_object_get(root.get(), isBid ? "bids" : "asks");
@@ -196,7 +196,7 @@ double getLimitPrice(Parameters& params, double volume, bool isBid, std::string 
   return p;
 }
 
-json_t* authRequest(Parameters &params, std::string request, std::string options)
+json_t* Bitfinex::authRequest(Parameters &params, std::string request, std::string options)
 {
   using namespace std;
 
@@ -233,4 +233,4 @@ json_t* authRequest(Parameters &params, std::string request, std::string options
   return checkResponse(*params.logFile, root);
 }
 
-}
+} //namespace NSExchange

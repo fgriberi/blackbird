@@ -5,16 +5,16 @@
 #include "unique_json.hpp"
 
 
-namespace ItBit {
+namespace NSExchange {
 
-static RestApi& queryHandle(Parameters &params)
+RestApi& ItBit::queryHandle(Parameters &params)
 {
   static RestApi query ("https://api.itbit.com",
                         params.cacert.c_str(), *params.logFile);
   return query;
 }
 
-quote_t getQuote(Parameters &params, std::string pair)
+quote_t ItBit::getQuote(Parameters &params, std::string pair)
 {
   auto &exchange = queryHandle(params);
   unique_json root { exchange.getRequest("/v1/markets/XBTUSD/ticker") };
@@ -28,19 +28,40 @@ quote_t getQuote(Parameters &params, std::string pair)
   return std::make_pair(bidValue, askValue);
 }
 
-double getAvail(Parameters& params, std::string currency) {
+double ItBit::getAvail(Parameters& params, std::string currency)
+{
   // TODO
   return 0.0;
 }
 
-double getActivePos(Parameters& params, std::string currency) {
+double ItBit::getActivePos(Parameters& params, std::string currency)
+{
   // TODO
   return 0.0;
 }
 
-double getLimitPrice(Parameters& params, double volume, bool isBid, std::string pair) {
+double ItBit::getLimitPrice(Parameters& params, double volume, bool isBid, std::string pair)
+{
   // TODO
   return 0.0;
 }
 
+std::string ItBit::sendLongOrder(Parameters& params, std::string direction, double quantity, double price, std::string pair)
+{
+  //TODO
+  return "0";
 }
+
+std::string ItBit::sendShortOrder(Parameters &params, std::string direction, double quantity, double price, std::string pair)
+{
+  //TODO
+  return "0";
+}
+
+bool ItBit::isOrderComplete(Parameters& params, std::string orderId)
+{
+  //TODO
+  return false;
+}
+
+} //namespace NSExchange
