@@ -33,6 +33,8 @@
 #include "utils/send_email.h"
 #include "getpid.h"
 #include "exchanges/iExchange.h"
+#include "tradeOutput.h"
+
 
 /** @brief Represents all exchanges availables */
 typedef std::vector<NSExchange::IExchange*> Exchanges;
@@ -244,12 +246,10 @@ int main(int argc, char** argv) {
     exit(EXIT_FAILURE);
   }
   // Creates the CSV file that will collect the trade results
-  std::string currDateTime = printDateTimeFileName();
-  std::string csvFileName = "output/blackbird_result_" + currDateTime + ".csv";
-  std::ofstream csvFile(csvFileName, std::ofstream::trunc);
-  csvFile << "TRADE_ID,EXCHANGE_LONG,EXHANGE_SHORT,ENTRY_TIME,EXIT_TIME,DURATION,"
-          << "TOTAL_EXPOSURE,BALANCE_BEFORE,BALANCE_AFTER,RETURN"
-          << std::endl;
+  const std::string currDateTime {printDateTimeFileName()};
+  const NSOutput::FileName csvFileName {"output/blackbird_result_" + currDateTime + ".csv"};
+  NSOutput::TradeOutput csvFile(csvFileName);
+
   // Creates the log file where all events will be saved
   std::string logFileName = "output/blackbird_log_" + currDateTime + ".log";
   std::ofstream logFile(logFileName, std::ofstream::trunc);
@@ -659,16 +659,8 @@ int main(int argc, char** argv) {
           // Prints the result in the result CSV file
           logFile.precision(2);
           logFile << "ACTUAL PERFORMANCE: " << "$" << res.leg2TotBalanceAfter - res.leg2TotBalanceBefore << " (" << res.actualPerf() * 100.0 << "%)\n" << std::endl;
-          csvFile << res.id << ","
-                  << res.exchNameLong << ","
-                  << res.exchNameShort << ","
-                  << printDateTimeCsv(res.entryTime) << ","
-                  << printDateTimeCsv(res.exitTime) << ","
-                  << res.getTradeLengthInMinute() << ","
-                  << res.exposure * 2.0 << ","
-                  << res.leg2TotBalanceBefore << ","
-                  << res.leg2TotBalanceAfter << ","
-                  << res.actualPerf() << std::endl;
+          csvFile.save(res);
+
           // Sends an email with the result of the trade
           if (params.sendEmail) {
             sendEmail(res, params);
@@ -701,7 +693,6 @@ int main(int argc, char** argv) {
   }
   // Analysis loop exited, does some cleanup
   curl_easy_cleanup(params.curl);
-  csvFile.close();
   logFile.close();
 
   //clean exchanges. TODO: use a functor for this
