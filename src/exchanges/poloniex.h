@@ -16,8 +16,7 @@ namespace NSExchange
 {
 
 /**
- * @brief Poloniex is an implementation of IExchange interface that use Poloniex exchange
- *        URL: https://poloniex.com/
+ * @brief Poloniex is an implementation of IExchange interface. https://poloniex.com/
  */
 class Poloniex : public IExchange
 {

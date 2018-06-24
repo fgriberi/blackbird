@@ -16,8 +16,7 @@ namespace NSExchange
 {
 
 /**
- * @brief WEX is an implementation of IExchange interface that use WEX exchange
- *        URL: https://wex.nz
+ * @brief WEX is an implementation of IExchange interface. https://wex.nz
  */
 class WEX : public IExchange
 {

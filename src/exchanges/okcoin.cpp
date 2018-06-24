@@ -12,16 +12,17 @@
 #include <thread>   // sleep_for
 #include <cmath>    // fabs
 
-namespace OKCoin {
+namespace NSExchange
+{
 
-static RestApi& queryHandle(Parameters &params)
+RestApi& OKCoin::queryHandle(Parameters &params)
 {
   static RestApi query ("https://www.okcoin.com",
                         params.cacert.c_str(), *params.logFile);
   return query;
 }
 
-quote_t getQuote(Parameters &params, std::string pair)
+quote_t OKCoin::getQuote(Parameters &params, std::string pair)
 {
   auto &exchange = queryHandle(params);
   unique_json root { exchange.getRequest("/api/ticker.do?ok=1") };
@@ -34,7 +35,7 @@ quote_t getQuote(Parameters &params, std::string pair)
   return std::make_pair(bidValue, askValue);
 }
 
-double getAvail(Parameters& params, std::string currency)
+double OKCoin::getAvail(Parameters& params, std::string currency)
 {
   std::ostringstream oss;
   oss << "api_key=" << params.okcoinApi << "&secret_key=" << params.okcoinSecret;
@@ -65,7 +66,7 @@ double getAvail(Parameters& params, std::string currency)
   return availability;
 }
 
-std::string sendLongOrder(Parameters& params, std::string direction, double quantity, double price, std::string pair)
+std::string OKCoin::sendLongOrder(Parameters& params, std::string direction, double quantity, double price, std::string pair)
 {
   // signature
   std::ostringstream oss;
@@ -85,7 +86,7 @@ std::string sendLongOrder(Parameters& params, std::string direction, double quan
   return orderId;
 }
 
-std::string sendShortOrder(Parameters& params, std::string direction, double quantity, double price, std::string pair) {
+std::string OKCoin::sendShortOrder(Parameters& params, std::string direction, double quantity, double price, std::string pair) {
   // TODO
   // Unlike Bitfinex and Poloniex, on OKCoin the borrowing phase has to be done
   // as a separated step before being able to short sell.
@@ -100,7 +101,7 @@ std::string sendShortOrder(Parameters& params, std::string direction, double qua
   return "0";
 }
 
-bool isOrderComplete(Parameters& params, std::string orderId)
+bool OKCoin::isOrderComplete(Parameters& params, std::string orderId)
 {
   if (orderId == "0") return true;
 
@@ -119,9 +120,13 @@ bool isOrderComplete(Parameters& params, std::string orderId)
   return status == 2;
 }
 
-double getActivePos(Parameters& params, std::string currency) { return getAvail(params, "btc"); }
+//TODO: inline function
+double OKCoin::getActivePos(Parameters& params, std::string currency)
+{
+  return getAvail(params, "btc");
+}
 
-double getLimitPrice(Parameters& params, double volume, bool isBid, std::string pair)
+double OKCoin::getLimitPrice(Parameters& params, double volume, bool isBid, std::string pair)
 {
   auto &exchange = queryHandle(params);
   unique_json root { exchange.getRequest("/api/v1/depth.do?symbol=btc_usd") };
@@ -149,7 +154,7 @@ double getLimitPrice(Parameters& params, double volume, bool isBid, std::string 
   return p;
 }
 
-json_t* authRequest(Parameters& params, std::string url, std::string signature, std::string content)
+json_t* OKCoin::authRequest(Parameters& params, std::string url, std::string signature, std::string content)
 {
   uint8_t digest[MD5_DIGEST_LENGTH];
   MD5((uint8_t *)signature.data(), signature.length(), (uint8_t *)&digest);
@@ -204,7 +209,7 @@ json_t* authRequest(Parameters& params, std::string url, std::string signature, 
   }
 }
 
-void getBorrowInfo(Parameters& params)
+void OKCoin::getBorrowInfo(Parameters& params)
 {
   std::ostringstream oss;
   oss << "api_key=" << params.okcoinApi << "&symbol=btc_usd&secret_key=" << params.okcoinSecret;
@@ -219,7 +224,7 @@ void getBorrowInfo(Parameters& params)
   free(dump);
 }
 
-int borrowBtc(Parameters& params, double amount)
+int OKCoin::borrowBtc(Parameters& params, double amount)
 {
   std::ostringstream oss;
   oss << "api_key=" << params.okcoinApi << "&symbol=btc_usd&days=fifteen&amount=" << 1 << "&rate=0.0001&secret_key=" << params.okcoinSecret;
@@ -240,7 +245,7 @@ int borrowBtc(Parameters& params, double amount)
          0;
 }
 
-void repayBtc(Parameters& params, int borrowId)
+void OKCoin::repayBtc(Parameters& params, int borrowId)
 {
   std::ostringstream oss;
   oss << "api_key=" << params.okcoinApi << "&borrow_id=" << borrowId << "&secret_key=" << params.okcoinSecret;
@@ -255,4 +260,4 @@ void repayBtc(Parameters& params, int borrowId)
   free(dump);
 }
 
-}
+} //namespace NSExchange

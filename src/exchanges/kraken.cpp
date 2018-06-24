@@ -1,17 +1,15 @@
-#include "kraken.h"
-#include "parameters.h"
-#include "utils/restapi.h"
-#include "utils/base64.h"
-#include "unique_json.hpp"
-
-#include "openssl/sha.h"
-#include "openssl/hmac.h"
 #include <iomanip>
 #include <vector>
 #include <array>
 #include <ctime>
+#include "kraken.h"
+#include "parameters.h"
+#include "utils/base64.h"
 
-namespace Kraken
+#include "openssl/sha.h"
+#include "openssl/hmac.h"
+
+namespace NSExchange
 {
 
 // Initialise internal variables
@@ -19,14 +17,15 @@ static unique_json krakenTicker = nullptr;
 static bool krakenGotTicker = false;
 
 
-static RestApi &queryHandle(Parameters &params)
+RestApi& Kraken::queryHandle(Parameters &params)
 {
   static RestApi query("https://api.kraken.com",
                        params.cacert.c_str(), *params.logFile);
   return query;
 }
 
-std::string getMatchingPair(std::string pair) {
+std::string Kraken::getMatchingPair(std::string pair)
+{
   if (pair.compare("btcusd") == 0) {
     return "XXBTZUSD";
   } else if (pair.compare("ethusd") == 0) {
@@ -58,7 +57,7 @@ std::string getMatchingPair(std::string pair) {
 //     krakenGotTicker = true;
 //   }
 
-//   json_t *root = krakenTicker.get();  
+//   json_t *root = krakenTicker.get();
 //   const char *quote = json_string_value(json_array_get(json_object_get(json_object_get(json_object_get(root, "result"), matchingPair), "b"), 0));
 //   auto bidValue = quote ? std::stod(quote) : 0.0;
 
@@ -68,14 +67,14 @@ std::string getMatchingPair(std::string pair) {
 //   return std::make_pair(bidValue, askValue);
 // }
 
-quote_t getQuote(Parameters &params, std::string pair)
+quote_t Kraken::getQuote(Parameters &params, std::string pair)
 {
   std::string matchingPair = getMatchingPair(pair);
   if (matchingPair.compare("") == 0) {
     *params.logFile << "<Kraken> Pair not supported" << std::endl;
     // return "0";
   }
-  
+
   if (krakenGotTicker)
   {
     krakenGotTicker = false;
@@ -106,7 +105,7 @@ quote_t getQuote(Parameters &params, std::string pair)
   return std::make_pair(bidValue, askValue);
 }
 
-double getAvail(Parameters &params, std::string currency)
+double Kraken::getAvail(Parameters &params, std::string currency)
 {
   *params.logFile << "<Kraken> getAvail" << std::endl;
 
@@ -145,12 +144,12 @@ double getAvail(Parameters &params, std::string currency)
   return available;
 }
 
-std::string sendLongOrder(Parameters& params, std::string direction, double quantity, double price, std::string pair) 
+std::string Kraken::sendLongOrder(Parameters& params, std::string direction, double quantity, double price, std::string pair)
 {
   return sendOrder(params, direction, quantity, price, pair);
 }
 
-std::string sendOrder(Parameters &params, std::string direction, double quantity, double price, std::string pair)
+std::string Kraken::sendOrder(Parameters &params, std::string direction, double quantity, double price, std::string pair)
 {
   if (direction.compare("buy") != 0 && direction.compare("sell") != 0)
   {
@@ -165,8 +164,8 @@ std::string sendOrder(Parameters &params, std::string direction, double quantity
   *params.logFile << "<Kraken> Trying to send a \"" << direction << "\" limit order: "
                   << std::setprecision(6) << quantity << " @ $"
                   << std::setprecision(2) << price << "...\n";
-				  
-  				  
+
+
   // std::string pair = matchingPair;
   std::string type = direction;
   std::string ordertype = "limit";
@@ -186,7 +185,7 @@ std::string sendOrder(Parameters &params, std::string direction, double quantity
   return txid;
 }
 
-std::string sendShortOrder(Parameters &params, std::string direction, double quantity, double price, std::string pair)
+std::string Kraken::sendShortOrder(Parameters &params, std::string direction, double quantity, double price, std::string pair)
 {
   if (direction.compare("buy") != 0 && direction.compare("sell") != 0)
   {
@@ -198,7 +197,7 @@ std::string sendShortOrder(Parameters &params, std::string direction, double qua
     *params.logFile << "<Kraken> Pair not supported" << std::endl;
     return "0";
   }
-  
+
   *params.logFile << "<Kraken> Trying to send a short \"" << direction << "\" limit order: "
                   << std::setprecision(6) << quantity << " @ $"
                   << std::setprecision(2) << price << "...\n";
@@ -225,7 +224,7 @@ std::string sendShortOrder(Parameters &params, std::string direction, double qua
   return txid;
 }
 
-bool isOrderComplete(Parameters &params, std::string orderId)
+bool Kraken::isOrderComplete(Parameters &params, std::string orderId)
 {
   unique_json root{authRequest(params, "/0/private/OpenOrders")};
   // no open order: return true
@@ -250,12 +249,12 @@ bool isOrderComplete(Parameters &params, std::string orderId)
   }
 }
 
-double getActivePos(Parameters &params, std::string currency)
+double Kraken::getActivePos(Parameters &params, std::string currency)
 {
   return getAvail(params, currency);
 }
 
-double getLimitPrice(Parameters &params, double volume, bool isBid, std::string pair)
+double Kraken::getLimitPrice(Parameters &params, double volume, bool isBid, std::string pair)
 {
   std::string matchingPair = getMatchingPair(pair);
   if (matchingPair.compare("") == 0) {
@@ -289,7 +288,7 @@ double getLimitPrice(Parameters &params, double volume, bool isBid, std::string 
   return currPrice;
 }
 
-json_t *authRequest(Parameters &params, std::string request, std::string options)
+json_t* Kraken::authRequest(Parameters &params, std::string request, std::string options)
 {
   // create nonce and POST data
   static uint64_t nonce = time(nullptr) * 4;
@@ -325,7 +324,7 @@ json_t *authRequest(Parameters &params, std::string request, std::string options
                               post_data);
 }
 
-void testKraken()
+void Kraken::testKraken()
 {
 
   Parameters params("bird.conf");
@@ -363,4 +362,6 @@ void testKraken()
   //std::cout << "Sell order is complete: " << isOrderComplete(params, orderId) << std::endl;
   //std::cout << "Active Position: " << getActivePos(params);
 }
-}
+
+} //namespace NSExchange
+

@@ -17,8 +17,7 @@ namespace NSExchange
 {
 
 /**
- * @brief QuadrigaCX is an implementation of IExchange interface that use QuadrigaCX exchange
- *        URL: https://www.quadrigacx.com
+ * @brief QuadrigaCX is an implementation of IExchange interface. https://www.quadrigacx.com
  */
 class QuadrigaCX : public IExchange
 {
