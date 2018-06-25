@@ -15,76 +15,33 @@
 #include "db_fun.h"
 #include "parameters.h"
 #include "check_entry_exit.h"
-#include "exchanges/bitfinex.h"
-#include "exchanges/okcoin.h"
-#include "exchanges/bitstamp.h"
-#include "exchanges/gemini.h"
-#include "exchanges/kraken.h"
-#include "exchanges/quadrigacx.h"
-#include "exchanges/itbit.h"
-#include "exchanges/btce.h"
-#include "exchanges/wex.h"
-#include "exchanges/poloniex.h"
-#include "exchanges/gdax.h"
-#include "exchanges/exmo.h"
-#include "exchanges/cexio.h"
-#include "exchanges/bittrex.h"
-#include "exchanges/binance.h"
 #include "utils/send_email.h"
 #include "getpid.h"
-#include "exchanges/iExchange.h"
+#include "tradeOutput.h"
+#include "mop.h"
 
-/** @brief Represents all exchanges availables */
-typedef std::vector<NSExchange::IExchange*> Exchanges;
-
-// This structure contains the balance of both exchanges,
-// *before* and *after* an arbitrage trade.
-// This is used to compute the performance of the trade,
-// by comparing the balance before and after the trade.
-struct Balance {
-  double leg1, leg2;
-  double leg1After, leg2After;
-};
-
-std::string str_tolower(std::string s) {
-    std::transform(s.begin(), s.end(), s.begin(), ::tolower
-                // static_cast<int(*)(int)>(std::tolower)         // wrong
-                // [](int c){ return std::tolower(c); }           // wrong
-                // [](char c){ return std::tolower(c); }          // wrong
-                  //  [](unsigned char c){ return std::tolower(c); } // correct
-                  );
-    return s;
-}
+using std::this_thread::sleep_for;
+using millisecs = std::chrono::milliseconds;
+using secs = std::chrono::seconds;
 
 // 'main' function.
 // Blackbird doesn't require any arguments for now.
-int main(int argc, char** argv) {
+int main(int argc, char** argv)
+{
   std::cout << "Blackbird Bitcoin Arbitrage" << std::endl;
   std::cout << "DISCLAIMER: USE THE SOFTWARE AT YOUR OWN RISK\n" << std::endl;
+
   // Replaces the C++ global locale with the user-preferred locale
   std::locale mylocale("");
+
   // Loads all the parameters
   Parameters params("blackbird.conf");
-  // Does some verifications about the parameters
-  if (!params.isDemoMode) {
-    if (!params.useFullExposure) {
-      if (params.testedExposure < 10.0 && (params.leg2.compare("USD") == 0 || params.leg2.compare("EUR") == 0)) {
-        // TODO do the same check for other currencies. Is there a limi?
-        std::cout << "ERROR: Minimum USD needed: $10.00" << std::endl;
-        std::cout << "       Otherwise some exchanges will reject the orders\n" << std::endl;
-        exit(EXIT_FAILURE);
-      }
-      if (params.testedExposure > params.maxExposure) {
-        std::cout << "ERROR: Test exposure (" << params.testedExposure << ") is above max exposure (" << params.maxExposure << ")\n" << std::endl;
-        exit(EXIT_FAILURE);
-      }
-    }
-  }
+  NSMop::demoModeAssert(params);
 
-// Connects to the SQLite3 database.
-// This database is used to collect bid and ask information
-// from the exchanges. Not really used for the moment, but
-// would be useful to collect historical bid/ask data.
+  // Connects to the SQLite3 database.
+  // This database is used to collect bid and ask information
+  // from the exchanges. Not really used for the moment, but
+  // would be useful to collect historical bid/ask data.
   if (createDbConnection(params) != 0) {
     std::cerr << "ERROR: cannot connect to the database \'" << params.dbFile << "\'\n" << std::endl;
     exit(EXIT_FAILURE);
@@ -96,160 +53,14 @@ int main(int argc, char** argv) {
   }
 
   std::string dbTableName[14];
-  Exchanges exchanges;
+  NSExchange::Exchanges exchanges;
+  NSMop::initializeExchages(params, exchanges, dbTableName);
 
-  // Adds the exchange functions to the arrays for all the defined exchanges
-  int index = 0;
-  if (params.bitfinexEnable &&
-     (params.bitfinexApi.empty() == false || params.isDemoMode)) {
-    params.addExchange("Bitfinex", params.bitfinexFees, true, true);
-    exchanges.push_back(new NSExchange::Bitfinex());
-    dbTableName[index] = "bitfinex";
-    createTable(dbTableName[index], params);
-
-    index++;
-  }
-  if (params.okcoinEnable &&
-     (params.okcoinApi.empty() == false || params.isDemoMode)) {
-    params.addExchange("OKCoin", params.okcoinFees, false, true);
-    exchanges.push_back(new NSExchange::OKCoin());
-    dbTableName[index] = "okcoin";
-    createTable(dbTableName[index], params);
-
-    index++;
-  }
-  if (params.bitstampEnable &&
-     (params.bitstampClientId.empty() == false || params.isDemoMode)) {
-    params.addExchange("Bitstamp", params.bitstampFees, false, true);
-    exchanges.push_back(new NSExchange::Bitstamp());
-    dbTableName[index] = "bitstamp";
-    createTable(dbTableName[index], params);
-
-    index++;
-  }
-  if (params.geminiEnable &&
-     (params.geminiApi.empty() == false || params.isDemoMode)) {
-    params.addExchange("Gemini", params.geminiFees, false, true);
-    exchanges.push_back(new NSExchange::Gemini());
-    dbTableName[index] = "gemini";
-    createTable(dbTableName[index], params);
-
-    index++;
-  }
-  if (params.krakenEnable &&
-     (params.krakenApi.empty() == false || params.isDemoMode)) {
-    params.addExchange("Kraken", params.krakenFees, true, true);
-    exchanges.push_back(new NSExchange::Kraken());
-    dbTableName[index] = "kraken";
-    createTable(dbTableName[index], params);
-
-    index++;
-  }
-  if (params.itbitEnable &&
-     (params.itbitApi.empty() == false || params.isDemoMode)) {
-    params.addExchange("ItBit", params.itbitFees, false, false);
-    exchanges.push_back(new NSExchange::ItBit());
-    dbTableName[index] = "itbit";
-    createTable(dbTableName[index], params);
-
-    index++;
-  }
-  if (params.btceEnable &&
-     (params.btceApi.empty() == false || params.isDemoMode)) {
-
-    params.addExchange("BTC-e", params.btceFees, false, true);
-    exchanges.push_back(new NSExchange::BTCe());
-    dbTableName[index] = "btce";
-    createTable(dbTableName[index], params);
-
-    index++;
-  }
-  if (params.wexEnable &&
-     (params.wexApi.empty() == false || params.isDemoMode)) {
-    params.addExchange("WEX", params.wexFees, false, true);
-    exchanges.push_back(new NSExchange::WEX());
-    dbTableName[index] = "wex";
-    createTable(dbTableName[index], params);
-
-    index++;
-  }
-  if (params.poloniexEnable &&
-     (params.poloniexApi.empty() == false || params.isDemoMode)) {
-    params.addExchange("Poloniex", params.poloniexFees, true, false);
-    exchanges.push_back(new NSExchange::Poloniex());
-    dbTableName[index] = "poloniex";
-    createTable(dbTableName[index], params);
-
-    index++;
-  }
-  if (params.gdaxEnable &&
-     (params.gdaxApi.empty() == false || params.isDemoMode)) {
-    params.addExchange("GDAX", params.gdaxFees, false, true);
-    exchanges.push_back(new NSExchange::GDAX());
-    dbTableName[index] = "gdax";
-    createTable(dbTableName[index], params);
-
-    index++;
-  }
-  if (params.quadrigaEnable &&
-         (params.quadrigaApi.empty() == false || params.isDemoMode)) {
-    params.addExchange("QuadrigaCX", params.quadrigaFees, false, true);
-    exchanges.push_back(new NSExchange::QuadrigaCX());
-    dbTableName[index] = "quadriga";
-    createTable(dbTableName[index], params);
-
-    index++;
-  }
-  if (params.exmoEnable &&
-         (params.exmoApi.empty() == false || params.isDemoMode)) {
-    params.addExchange("Exmo", params.exmoFees, false, true);
-    exchanges.push_back(new NSExchange::Exmo());
-    dbTableName[index] = "exmo";
-    createTable(dbTableName[index], params);
-
-    index++;
-  }
-  if (params.cexioEnable &&
-         (params.cexioApi.empty() == false || params.isDemoMode)) {
-    params.addExchange("Cexio", params.cexioFees, false, true);
-    exchanges.push_back(new NSExchange::Cexio());
-    dbTableName[index] = "cexio";
-    createTable(dbTableName[index], params);
-
-    index++;
-  }
-  if (params.bittrexEnable &&
-      (params.bittrexApi.empty() == false || params.isDemoMode))
-  {
-    params.addExchange("Bittrex", params.bittrexFees, false, true);
-    exchanges.push_back(new NSExchange::Bittrex());
-    dbTableName[index] = "bittrex";
-    createTable(dbTableName[index], params);
-
-    index++;
-  }
-  if (params.binanceEnable &&
-      (params.binanceApi.empty() == false || params.isDemoMode))
-  {
-    params.addExchange("Binance", params.binanceFees, false, true);
-    exchanges.push_back(new NSExchange::Binance());
-    dbTableName[index] = "binance";
-    createTable(dbTableName[index], params);
-    index++;
-
-  }
-  // We need at least two exchanges to run Blackbird
-  if (index < 2) {
-    std::cout << "ERROR: Blackbird needs at least two Bitcoin exchanges. Please edit the config.json file to add new exchanges\n" << std::endl;
-    exit(EXIT_FAILURE);
-  }
   // Creates the CSV file that will collect the trade results
-  std::string currDateTime = printDateTimeFileName();
-  std::string csvFileName = "output/blackbird_result_" + currDateTime + ".csv";
-  std::ofstream csvFile(csvFileName, std::ofstream::trunc);
-  csvFile << "TRADE_ID,EXCHANGE_LONG,EXHANGE_SHORT,ENTRY_TIME,EXIT_TIME,DURATION,"
-          << "TOTAL_EXPOSURE,BALANCE_BEFORE,BALANCE_AFTER,RETURN"
-          << std::endl;
+  const std::string currDateTime {printDateTimeFileName()};
+  const NSOutput::FileName csvFileName {"output/blackbird_result_" + currDateTime + ".csv"};
+  NSOutput::TradeOutput csvFile(csvFileName);
+
   // Creates the log file where all events will be saved
   std::string logFileName = "output/blackbird_log_" + currDateTime + ".log";
   std::ofstream logFile(logFileName, std::ofstream::trunc);
@@ -257,14 +68,13 @@ int main(int argc, char** argv) {
   logFile.precision(2);
   logFile << std::fixed;
   params.logFile = &logFile;
+
   // Log file header
   logFile << "--------------------------------------------" << std::endl;
   logFile << "|   Blackbird Bitcoin Arbitrage Log File   |" << std::endl;
   logFile << "--------------------------------------------\n" << std::endl;
   logFile << "Blackbird started on " << printDateTime() << "\n" << std::endl;
-
   logFile << "Connected to database \'" << params.dbFile << "\'\n" << std::endl;
-
   if (params.isDemoMode) {
     logFile << "Demo mode: trades won't be generated\n" << std::endl;
   }
@@ -274,9 +84,9 @@ int main(int argc, char** argv) {
 
   std::cout << "Log file generated: " << logFileName << "\nBlackbird is running... (pid " << getpid() << ")\n" << std::endl;
   int numExch = params.nbExch();
-  // The btcVec vector contains details about every exchange,
-  // like fees, as specified in bitcoin.h
-  std::vector<Bitcoin> btcVec;
+
+  // The btcVec vector contains details about every exchange, like fees, as specified in bitcoin.h
+  NSMop::BitcoinContainer btcVec;
   btcVec.reserve(numExch);
   // Creates a new Bitcoin structure within btcVec for every exchange we want to trade on
   for (int i = 0; i < numExch; ++i) {
@@ -285,6 +95,7 @@ int main(int argc, char** argv) {
 
   // Inits cURL connections
   params.curl = curl_easy_init();
+
   // Shows the spreads
   logFile << "[ Targets ]\n"
           << std::setprecision(2)
@@ -301,75 +112,42 @@ int main(int argc, char** argv) {
   }
   logFile << std::endl;
   logFile << "[ Current balances ]" << std::endl;
-  // Gets the the balances from every exchange
-  // This is only done when not in Demo mode.
 
-  // TODO: see how to use exchanges
-  std::vector<Balance> balance(numExch);
-  /*
+  //*************************************************************************************
+  // Gets the the balances from every exchange. This is only done when not in Demo mode.
+  //*************************************************************************************
+  NSMop::Balances balance(numExch);
   if (!params.isDemoMode) {
-    std::transform(getAvail, getAvail + numExch,
-                   begin(balance),
-                   [&params]( decltype(*getAvail) apply )
+    std::transform(exchanges.begin(), exchanges.end(),
+                   balance.begin(),
+                   [&params](NSExchange::IExchange* exchange)
                    {
-                     Balance tmp {};
+                     NSMop::Balance tmp {};
 
-                     std::string leg1Lower = str_tolower(params.leg1);
-                     std::string leg2Lower = str_tolower(params.leg2);
+                     std::string leg1Lower = NSMop::str_tolower(params.leg1);
+                     std::string leg2Lower = NSMop::str_tolower(params.leg2);
 
 
-                     tmp.leg1 = apply(params, leg1Lower);
-                     tmp.leg2 = apply(params, leg2Lower);
+                     tmp.leg1 = exchange->getAvail(params, leg1Lower);
+                     tmp.leg2 = exchange->getAvail(params, leg2Lower);
                      return tmp;
                    } );
   }
-  */
 
-  std::string pair = str_tolower(params.leg1 + params.leg2);
+  std::string pair = NSMop::str_tolower(params.leg1 + params.leg2);
   // logFile << "pair = " << pair;
 
-  // Checks for a restore.txt file, to see if
-  // the program exited with an open position.
+  // Checks for a restore.txt file, to see if the program exited with an open position.
   Result res;
   res.reset();
   bool inMarket = res.loadPartialResult("restore.txt");
 
-  // Writes the current balances into the log file
-  for (int i = 0; i < numExch; ++i) {
-    logFile << "   " << params.exchName[i] << ":\t";
-    if (params.isDemoMode) {
-      logFile << "n/a (demo mode)" << std::endl;
-    } else if (!params.isImplemented[i]) {
-      logFile << "n/a (API not implemented)" << std::endl;
-    } else {
-      logFile << std::setprecision(2) << balance[i].leg2 << " " << params.leg2 << "\t"
-              << std::setprecision(6) << balance[i].leg1 << " " << params.leg1 << std::endl;
-    }
-    if (balance[i].leg1 > 0.0050 && !inMarket) { // FIXME: hard-coded number
-      logFile << "ERROR: All " << params.leg1 << " accounts must be empty before starting Blackbird" << std::endl;
-      exit(EXIT_FAILURE);
-    }
-  }
-  logFile << std::endl;
-  logFile << "[ Cash exposure ]\n";
-  if (params.isDemoMode) {
-    logFile << "   No cash - Demo mode\n";
-  } else {
-    if (params.useFullExposure) {
-      logFile << "   FULL exposure used!\n";
-    } else {
-      logFile << "   TEST exposure used\n   Value: "
-              << std::setprecision(2) << params.testedExposure << '\n';
-    }
-  }
-  logFile << std::endl;
-  // Code implementing the loop function, that runs
-  // every 'Interval' seconds.
+  NSMop::logCurrentBalances(params, balance, numExch, inMarket, logFile);
+
+  // Code implementing the loop function, that runs every 'Interval' seconds.
   time_t rawtime = time(nullptr);
   tm timeinfo = *localtime(&rawtime);
-  using std::this_thread::sleep_for;
-  using millisecs = std::chrono::milliseconds;
-  using secs      = std::chrono::seconds;
+
   // Waits for the next 'interval' seconds before starting the loop
   while ((int)timeinfo.tm_sec % params.interval != 0) {
     sleep_for(millisecs(100));
@@ -386,8 +164,11 @@ int main(int argc, char** argv) {
   time_t currTime;
   time_t diffTime;
 
+  //***************************
   // Main analysis loop
-  while (stillRunning) {
+  //***************************
+  while (stillRunning)
+  {
     currTime = mktime(&timeinfo);
     time(&rawtime);
     diffTime = difftime(rawtime, currTime);
@@ -411,7 +192,10 @@ int main(int argc, char** argv) {
         logFile << "[ " << printDateTime(currTime) << " IN MARKET: Long " << res.exchNameLong << " / Short " << res.exchNameShort << " ]" << std::endl;
       }
     }
+
+    //*********************************************************************************
     // Gets the bid and ask of all the exchanges
+    //*********************************************************************************
     for (int i = 0; i < numExch; ++i) {
       auto quote = exchanges[i]->getQuote(params, pair);
       double bid = quote.bid();
@@ -441,9 +225,8 @@ int main(int argc, char** argv) {
     if (params.verbose) {
       logFile << "   ----------------------------" << std::endl;
     }
-    // Stores all the spreads in arrays to
-    // compute the volatility. The volatility
-    // is not used for the moment.
+
+    // Stores all the spreads in arrays to compute the volatility. The volatility is not used for the moment.
     if (params.useVolatility) {
       for (int i = 0; i < numExch; ++i) {
         for (int j = 0; j < numExch; ++j) {
@@ -462,13 +245,19 @@ int main(int argc, char** argv) {
         }
       }
     }
+
+    //*********************************************************************************
     // Looks for arbitrage opportunities on all the exchange combinations
-    if (!inMarket) {
+    //*********************************************************************************
+    if (!inMarket)
+    {
       for (int i = 0; i < numExch; ++i) {
         for (int j = 0; j < numExch; ++j) {
           if (i != j) {
             if (checkEntry(&btcVec[i], &btcVec[j], res, params)) {
+              //*********************************************************************************
               // An entry opportunity has been found!
+              //*********************************************************************************
               res.exposure = std::min(balance[res.idExchLong].leg2, balance[res.idExchShort].leg2);
               if (params.isDemoMode) {
                 logFile << "INFO: Opportunity found but no trade will be generated (Demo mode)" << std::endl;
@@ -566,22 +355,24 @@ int main(int argc, char** argv) {
               break;
             }
           }
-        }
+        } //end nested for
         if (inMarket) {
           break;
         }
-      }
+      } // end first for
       if (params.verbose) {
         logFile << std::endl;
       }
     } else if (inMarket) {
       // We are in market and looking for an exit opportunity
       if (checkExit(&btcVec[res.idExchLong], &btcVec[res.idExchShort], res, params, currTime)) {
+        //*********************************************************************************
         // An exit opportunity has been found!
+        //*********************************************************************************
         // We check the current leg1 exposure
         std::vector<double> btcUsed(numExch);
         for (int i = 0; i < numExch; ++i) {
-          btcUsed[i] = exchanges[i]->getActivePos(params, str_tolower(params.leg1));
+          btcUsed[i] = exchanges[i]->getActivePos(params, NSMop::str_tolower(params.leg1));
         }
         // Checks the volumes and computes the limit prices that will be sent to the exchanges
         double volumeLong = btcUsed[res.idExchLong];
@@ -633,8 +424,8 @@ int main(int argc, char** argv) {
           shortOrderId = "0";
           inMarket = false;
           for (int i = 0; i < numExch; ++i) {
-            std::string leg1AfterLower = str_tolower(params.leg1);
-            std::string leg2AfterLower = str_tolower(params.leg2);
+            std::string leg1AfterLower = NSMop::str_tolower(params.leg1);
+            std::string leg2AfterLower = NSMop::str_tolower(params.leg2);
 
             balance[i].leg2After = exchanges[i]->getAvail(params, leg2AfterLower);
             balance[i].leg1After = exchanges[i]->getAvail(params, leg1AfterLower);
@@ -659,16 +450,8 @@ int main(int argc, char** argv) {
           // Prints the result in the result CSV file
           logFile.precision(2);
           logFile << "ACTUAL PERFORMANCE: " << "$" << res.leg2TotBalanceAfter - res.leg2TotBalanceBefore << " (" << res.actualPerf() * 100.0 << "%)\n" << std::endl;
-          csvFile << res.id << ","
-                  << res.exchNameLong << ","
-                  << res.exchNameShort << ","
-                  << printDateTimeCsv(res.entryTime) << ","
-                  << printDateTimeCsv(res.exitTime) << ","
-                  << res.getTradeLengthInMinute() << ","
-                  << res.exposure * 2.0 << ","
-                  << res.leg2TotBalanceBefore << ","
-                  << res.leg2TotBalanceAfter << ","
-                  << res.actualPerf() << std::endl;
+          csvFile.save(res);
+
           // Sends an email with the result of the trade
           if (params.sendEmail) {
             sendEmail(res, params);
@@ -701,11 +484,10 @@ int main(int argc, char** argv) {
   }
   // Analysis loop exited, does some cleanup
   curl_easy_cleanup(params.curl);
-  csvFile.close();
   logFile.close();
 
-  //clean exchanges. TODO: use a functor for this
-  for (Exchanges::iterator it(exchanges.begin()); it != exchanges.end(); ++it)
+  //clean exchanges
+  for (NSExchange::Exchanges::iterator it(exchanges.begin()); it != exchanges.end(); ++it)
   {
     delete (*it);
   }
