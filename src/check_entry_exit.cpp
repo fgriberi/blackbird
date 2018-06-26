@@ -33,7 +33,7 @@ std::string percToStr(double perc) {
 bool checkEntry(const Bitcoin* const btcLong, const Bitcoin* const btcShort, Result& res, Parameters& params)
 {
   //****************************************************************************
-  // NOTE: we need to looking opportunity only in long trading. By default,
+  // NOTE: we need to looking opportunities only between long trading. By default,
   //       all exchanges are long. The following line is commented it instead
   //       of deleting it because in a short future we will reuse short trading.
   //if (!btcShort->getHasShort()) return false;
