@@ -73,16 +73,24 @@ void demoModeAssert(const Parameters& params);
 void initializeExchages(Parameters& params, NSExchange::Exchanges& exchanges, std::string* dbTableName);
 
 /**
+ * @brief Gets the the balances from every exchange. This is only done when not in Demo mode.
+ *
+ * @param params[in]: hold the exchanges information
+ * @param params[out]: hold the exchanges information
+ * @param balance[out]: to fill with the exchange balances
+ */
+void getExchangeBalances(const NSExchange::Exchanges& exchanges, Parameters& params, NSMop::Balances& balance);
+
+/**
  * @brief Writes the current balances into the log file
  *
  * @param balance[in]: the exchanges balance container
  * @param params[in]: hold the exchanges information
  * @param numExch[in]: amount of exchanges availables
- * @param inMarket[in]: inMarket boolean
  * @param logFile[out]: the log file reference
  */
 void logCurrentBalances(const Parameters& params, const NSMop::Balances& balance, const size_t numExch,
-						const bool inMarket, std::ofstream& logFile);
+						std::ofstream& logFile);
 
 } //namspace NSMop
 #endif /* MOP_H */
