@@ -15,7 +15,7 @@ template <typename T>
 static typename std::iterator_traits<T>::value_type compute_sd(T first, const T &last) {
   using namespace std;
   typedef typename iterator_traits<T>::value_type value_type;
-  
+
   auto n  = distance(first, last);
   auto mu = accumulate(first, last, value_type()) / n;
   auto squareSum = inner_product(first, last, first, value_type());
@@ -30,9 +30,14 @@ std::string percToStr(double perc) {
   return s.str();
 }
 
-bool checkEntry(Bitcoin* btcLong, Bitcoin* btcShort, Result& res, Parameters& params) {
-  
-  if (!btcShort->getHasShort()) return false;
+bool checkEntry(const Bitcoin* const btcLong, const Bitcoin* const btcShort, Result& res, Parameters& params)
+{
+  //****************************************************************************
+  // NOTE: we need to looking opportunities only between long trading. By default,
+  //       all exchanges are long. The following line is commented it instead
+  //       of deleting it because in a short future we will reuse short trading.
+  //if (!btcShort->getHasShort()) return false;
+  //****************************************************************************
 
   // Gets the prices and computes the spread
   double priceLong = btcLong->getAsk();
@@ -55,9 +60,8 @@ bool checkEntry(Bitcoin* btcLong, Bitcoin* btcShort, Result& res, Parameters& pa
     params.logFile->precision(2);
     *params.logFile << "   " << btcLong->getExchName() << "/" << btcShort->getExchName() << ":\t" << percToStr(res.spreadIn);
     *params.logFile << " [target " << percToStr(params.spreadEntry) << ", min " << percToStr(res.minSpread[longId][shortId]) << ", max " << percToStr(res.maxSpread[longId][shortId]) << "]";
-    // The short-term volatility is computed and
-    // displayed. No other action with it for
-    // the moment.
+
+    // The short-term volatility is computed and displayed. No other action with it for the moment.
     if (params.useVolatility) {
       if (res.volatility[longId][shortId].size() >= params.volatilityPeriod) {
         auto stdev = compute_sd(begin(res.volatility[longId][shortId]), end(res.volatility[longId][shortId]));
@@ -66,31 +70,27 @@ bool checkEntry(Bitcoin* btcLong, Bitcoin* btcShort, Result& res, Parameters& pa
         *params.logFile << "  volat. n/a " << res.volatility[longId][shortId].size() << "<" << params.volatilityPeriod << " ";
       }
     }
+
     // Updates the trailing spread
-    // TODO: explain what a trailing spread is.
-    // See #12 on GitHub for the moment
+    // TODO: explain what a trailing spread is. See #12 on GitHub for the moment
     if (res.trailing[longId][shortId] != -1.0) {
       *params.logFile << "   trailing " << percToStr(res.trailing[longId][shortId]) << "  " << res.trailingWaitCount[longId][shortId] << "/" << params.trailingCount;
     }
     // If one of the exchanges (or both) hasn't been implemented,
     // we mention in the log file that this spread is for info only.
-    if ((!btcLong->getIsImplemented() || !btcShort->getIsImplemented()) && !params.isDemoMode)
+    if ((!btcLong->getIsImplemented() || !btcShort->getIsImplemented()) && !params.isDemoMode) {
       *params.logFile << "   info only";
-
+    }
     *params.logFile << std::endl;
   }
-  // We need both exchanges to be implemented,
-  // otherwise we return False regardless of
-  // the opportunity found.
-  if (!btcLong->getIsImplemented() ||
-      !btcShort->getIsImplemented() ||
-      res.spreadIn == 0.0)
-    return false;
 
-  // the trailing spread is reset for this pair,
-  // because once the spread is *below*
-  // SpreadEndtry. Again, see #12 on GitHub for
-  // more details.
+  // We need both exchanges to be implemented, otherwise we return False regardless of the opportunity found.
+  if (!btcLong->getIsImplemented() || !btcShort->getIsImplemented() || res.spreadIn == 0.0){
+    return false;
+  }
+
+  // the trailing spread is reset for this pair, because once the spread is *below*
+  // SpreadEndtry. Again, see #12 on GitHub for more details.
   if (res.spreadIn < params.spreadEntry) {
     res.trailing[longId][shortId] = -1.0;
     res.trailingWaitCount[longId][shortId] = 0;
@@ -118,9 +118,8 @@ bool checkEntry(Bitcoin* btcLong, Bitcoin* btcShort, Result& res, Parameters& pa
     return false;
   }
 
-  // Updates the Result structure with the information about
-  // the two trades and return True (meaning an opportunity
-  // was found).
+  // Updates the Result structure with the information about the two trades
+  // and return True (meaning an opportunity was found).
   res.idExchLong = longId;
   res.idExchShort = shortId;
   res.feesLong = btcLong->getFees();
