@@ -1,3 +1,4 @@
+#include <algorithm>
 #include "mop.h"
 #include "db_fun.h"
 #include "time_fun.h"
@@ -169,9 +170,29 @@ void initializeExchages(Parameters& params, NSExchange::Exchanges& exchanges, st
 	}
 }
 
-void logCurrentBalances(const Parameters& params, const NSMop::Balances& balance, const size_t numExch,
-						const bool inMarket, std::ofstream& logFile)
+void getExchangeBalances(const NSExchange::Exchanges& exchanges, Parameters& params, NSMop::Balances& balance)
 {
+	if (!params.isDemoMode) {
+		std::transform(exchanges.begin(), exchanges.end(),
+					   balance.begin(),
+					   [&params](NSExchange::IExchange* exchange)
+					   {
+							NSMop::Balance tmp {};
+
+							std::string leg1Lower = NSMop::str_tolower(params.leg1);
+							std::string leg2Lower = NSMop::str_tolower(params.leg2);
+
+							tmp.leg1 = exchange->getAvail(params, leg1Lower);
+							tmp.leg2 = exchange->getAvail(params, leg2Lower);
+							return tmp;
+					   });
+	}
+}
+
+void logCurrentBalances(const Parameters& params, const NSMop::Balances& balance, const size_t numExch,
+						std::ofstream& logFile)
+{
+  logFile << "[ Current balances ]" << std::endl;
   for (size_t i(0u); i < numExch; ++i) {
     logFile << "   " << params.exchName[i] << ":\t";
     if (params.isDemoMode) {
@@ -182,7 +203,7 @@ void logCurrentBalances(const Parameters& params, const NSMop::Balances& balance
       logFile << std::setprecision(2) << balance[i].leg2 << " " << params.leg2 << "\t"
               << std::setprecision(6) << balance[i].leg1 << " " << params.leg1 << std::endl;
     }
-    if (balance[i].leg1 > 0.0050 && !inMarket) { // FIXME: hard-coded number
+    if (balance[i].leg1 > 0.0050) { // FIXME: hard-coded number
       logFile << "ERROR: All " << params.leg1 << " accounts must be empty before starting Blackbird" << std::endl;
       exit(EXIT_FAILURE);
     }
